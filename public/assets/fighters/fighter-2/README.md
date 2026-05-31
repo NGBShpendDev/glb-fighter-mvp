@@ -17,4 +17,4 @@ victory.png
 
 Each animation is a one-row PNG. Frame dimensions are inferred automatically from the image width and configured frame count in `src/game/spriteFighters.ts`.
 
-`heavy-punch.png` and `special.png` are still optional future additions. Until those exist, heavy punch reuses `light-punch.png` and special reuses `kick.png`. If any sprite sheet fails to load, sprite mode gracefully falls back to the closest configured animation or the generated placeholder fighter.
+`dash.png`, `heavy-punch.png`, `special.png`, and `knockdown.png` are optional future additions. Until those exist, the renderer safely uses walk, light punch, kick, and KO visuals. If any required sprite sheet fails to load, sprite mode gracefully falls back to the generated placeholder fighter. See `docs/SPRITE_PRODUCTION_SPEC.md` for the upgraded `512x512` production format.
