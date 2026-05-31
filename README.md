@@ -15,6 +15,8 @@ The included fighter GLBs are intentionally static meshes. The game controller o
 - Meter-backed special moves, fighter stats, round callouts, perfect wins, and victory presentation
 - Procedural idle, attack lunge, kick spin, jump stretch, recoil squash, KO fall, and victory motion
 - Generated Web Audio hit effects and a lightweight synth backing loop with a sound toggle
+- Config-driven stage art pipeline with safe procedural fallbacks and optional parallax layers
+- Drop-in transparent PNG overlays for impact, block, dust, special, and KO effects
 - Uploaded `.glb` fighter skins with automatic height normalization and fallback meshes
 - Local character-select screen with rotating GLB previews and per-fighter tuning
 - Vercel Blob character uploads with progress, validation, and browser-local metadata
@@ -33,8 +35,14 @@ Open the local URL printed by Vite, usually `http://localhost:5173`.
 Verify the production build before deploying:
 
 ```bash
+npm run test:models
+npm run test:game
 npm run build
 ```
+
+`npm run test:models` verifies that the submitted fighter GLBs exist, use GLB version 2, contain scenes and meshes, and match their declared binary size.
+
+`npm run test:game` runs a fast state-level combat smoke test for arena bounds, jumping, dashing, hits, blocking, KO, rematch, pause, and draw handling.
 
 ## Controls
 
@@ -49,6 +57,7 @@ npm run build
 | Kick | `H` | `L` |
 | Special | `R` | `I` |
 | Toggle hitboxes | `B` | `B` |
+| Pause / resume | `Esc` | `Esc` |
 
 ## Project Structure
 
@@ -58,15 +67,26 @@ api/
 src/
   components/
     Arena.tsx                 # Urban Three.js stage
+    StageManager.tsx          # Config-driven stage assets and fallback arena
+    VFXManager.tsx            # Capped sprite-sheet event renderer
     FighterController.tsx     # Reusable visual fighter shell
     GameScene.tsx             # Match loop, camera, controls, sparks
     GameUI.tsx                # HUD, title screen, KO flow
+    UiAtlasSprite.tsx         # Optional generated arcade UI atlas crops
     CharacterSelect.tsx       # Local GLB selection and preview controls
+    DebugModelViewer.tsx      # Standalone GLB diagnostics and tuning page
     UploadCharacterPage.tsx   # Vercel Blob upload screen
+    models/
+      GlbModel.tsx            # Shared safe loader, normalization, fallback
+    assets/
+      useSafeTexture.ts       # Safe image loading for optional stage art
   game/
     constants.ts              # Move tuning and controls
     hitboxes.ts               # Collision volumes and overlap checks
+    models.ts                 # Bundled model paths and tuning defaults
+    stages.ts                 # Stage catalog, layers, lighting, and music paths
     types.ts                  # Combat types
+    vfx.ts                    # Drop-in transparent PNG effect paths
   store/
     gameStore.ts              # Zustand match state and simulation
 ```
@@ -102,6 +122,8 @@ Plain `npm run dev` still runs the playable game and bundled character select, b
 
 The character-select screen offers a small bundled list that includes `public/models/fighter-1.glb` and `public/models/fighter-2.glb`. Selected skins are loaded through Drei's `useGLTF`, automatically normalized to a similar height, and replaced with a simple fallback mesh if loading fails.
 
+Files inside Vite's `public/` folder are served from the site root. Use `/models/fighter-1.glb` in code for `public/models/fighter-1.glb`; do not include `public` in the browser URL.
+
 Per-fighter visual tuning is stored locally in the Zustand game state:
 
 ```ts
@@ -109,6 +131,118 @@ Per-fighter visual tuning is stored locally in the Zustand game state:
 ```
 
 These values only adjust the visible skin. Movement, hitboxes, and hurtboxes remain locked to the 2.5D fighting plane.
+
+The character-select cards expose sliders for scale, vertical offset, horizontal offset, and rotation. Use `RESET TUNING` to return a fighter to the recommended defaults.
+
+## Debugging GLB Models
+
+Open `DEBUG MODEL VIEWER` from the title screen to inspect `fighter-1.glb` and `fighter-2.glb` outside the match. The viewer shows:
+
+- Loading, loaded, and error states
+- Browser URL and matching `public/` file path
+- Mesh and node counts
+- Original model dimensions
+- Automatic normalization scale
+- Controls for scale, rotation Y, vertical offset, and horizontal offset
+
+The browser console also logs `[GLB] loading`, `[GLB] loaded`, or `[GLB] failed` messages. During a match, each health bar shows the active fighter model status. If loading fails, the game uses a blocky fallback fighter instead of crashing.
+
+## Adding Local GLB Models
+
+For the simplest local workflow:
+
+1. Copy a `.glb` file into `public/models/`.
+2. Add a matching entry to `BUNDLED_MODELS` in `src/game/models.ts`.
+3. Run `npm run dev`.
+4. Select the new model, tune its sliders, and start a match.
+
+Static, non-rigged GLBs are expected. The controller adds procedural motion around the model without requiring skeleton clips. If a model URL is missing or invalid, the game renders a blocky fallback fighter so the round remains playable.
+
+## Adding Stage Art
+
+The game now has an art asset pipeline under `public/assets/`. Vite serves everything in this folder from the site root, so `public/assets/vfx/hit-sparks.png` is referenced in code as `/assets/vfx/hit-sparks.png`.
+
+The current procedural night-market arena remains the default fallback. This keeps the game playable while image assets are missing, loading, or invalid.
+
+The included `Neon Street Alley` can be selected on the title screen. Its files live in `public/assets/stages/street-alley/`:
+
+```text
+bg-far.png
+bg-mid.png
+floor.png
+fg-overlay.png
+thumbnail.png
+```
+
+The original procedural night market is also selectable and remains the automatic fallback if a required custom-stage image fails to load.
+
+To add a similar stage:
+
+1. Add a new folder under `public/assets/stages/` with your image files.
+2. Copy the street-alley entry in `src/game/stages.ts` and update its paths.
+3. Set the new stage's `artEnabled` value to `true`.
+4. Run `npm run dev`.
+
+`bg-far.png` is the required rear image. Midground PNGs become flat planes at different depths and move at different follow rates for the 2.5D parallax effect. Foreground art renders with restrained opacity in front of the fighters. `floor.png` maps onto the ground plane. If the required background does not load, `StageManager` automatically keeps the procedural arena visible.
+
+Each stage config supports:
+
+```ts
+{
+  name,
+  backgroundImage,
+  parallaxLayers,
+  foregroundOverlay,
+  floorTexture,
+  lighting,
+  ambientParticles,
+  musicPath,
+  previewThumbnail
+}
+```
+
+To add another stage, copy the street-alley entry in `src/game/stages.ts`, give it a unique ID, and point its paths at a new folder under `public/assets/stages/`.
+
+## Adding VFX Art
+
+Sprite-sheet effects are configured in `src/game/vfx.ts`. The procedural sparks remain in place as a fallback layer, and the reusable `VFXManager` caps active effects to keep rendering smooth.
+
+The current VFX sheets live in `public/assets/vfx/`:
+
+```text
+hit-sparks.png
+dust-puff.png
+energy-slash.png
+```
+
+`hit-sparks.png` supplies hit and block frames. `dust-puff.png` animates when fighters dash or land. `energy-slash.png` animates once when a special attack begins and flips to match the attacker's facing direction. The supplied sheets include a baked pale checkerboard, so `VFXManager` filters that background in its shader.
+
+For future sheets, update the path, column count, row count, frame order, size, and lifetime in `src/game/vfx.ts`. Transparent PNGs are preferred when available.
+
+The remaining drop-in folders are ready for later UI, splash, and audio files:
+
+```text
+public/assets/ui/
+public/assets/splash/
+public/assets/audio/
+```
+
+## Arcade UI Atlas
+
+The generated interface sheet lives at `public/assets/ui/arcade-ui-atlas.png`. The HUD uses CSS-first arcade health frames, a central timer, animated `ROUND 1`, `FIGHT`, `KO`, and `WIN` callouts, cleaned-up pause and rematch panels, and framed character cards.
+
+`UiAtlasSprite` adds decorative atlas crops only after the PNG loads successfully. If the file is missing or fails to load, the CSS interface remains readable and playable. The submitted sheet includes a baked checkerboard, so its crops use restrained opacity and blending as enhancement layers rather than replacing live text.
+
+## Local Testing Checklist
+
+- Start a round with the button and with `Space`.
+- Move both fighters to each arena edge and confirm they stop at the boundary.
+- Test jump, dash, blocking, all four attacks, and `B` hitbox display.
+- Press `Esc`, resume, restart the round, and return to Character Select.
+- Finish a round by damage and use `RUN IT BACK`.
+- Select each bundled GLB, adjust tuning sliders, and use `RESET TUNING`.
+- Open `DEBUG MODEL VIEWER`, preview both submitted GLBs, and confirm each reaches `LOADED`.
+- Temporarily add a bad model path while developing to confirm the fallback mesh appears.
 
 ## Later Milestone
 

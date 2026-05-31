@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test:game": "node scripts/test-game-state.mjs",
+    "test:models": "node scripts/test-models.mjs",
     "preview": "vite preview",
     "generate:models": "node scripts/generate-placeholder-models.mjs"
   },
@@ -23,6 +25,7 @@
     "@types/react-dom": "^19.2.2",
     "@types/three": "^0.181.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "esbuild": "^0.27.7",
     "typescript": "~5.9.3",
     "vite": "^7.2.2"
   }
