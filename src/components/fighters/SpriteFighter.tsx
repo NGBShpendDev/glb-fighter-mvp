@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import type { PlayerId } from '../../game/types'
+import type { PlayerId, SpriteAssetDiagnostic } from '../../game/types'
 import {
   getSpriteAnimation,
   type SpriteFighterConfig,
@@ -23,6 +23,7 @@ const fragmentShader = `
   uniform float uFrame;
   uniform float uFrameCount;
   uniform float uFilterPaleBackground;
+  uniform float uOpacity;
   varying vec2 vUv;
 
   void main() {
@@ -32,7 +33,7 @@ const fragmentShader = `
     float darkest = min(pixel.r, min(pixel.g, pixel.b));
     float saturation = brightest - darkest;
     float paleNeutral = smoothstep(0.82, 0.97, brightest) * (1.0 - smoothstep(0.025, 0.12, saturation));
-    float alpha = pixel.a * (1.0 - paleNeutral * uFilterPaleBackground);
+    float alpha = pixel.a * (1.0 - paleNeutral * uFilterPaleBackground) * uOpacity;
 
     if (alpha < 0.035) discard;
     gl_FragColor = vec4(pixel.rgb, alpha);
@@ -83,70 +84,117 @@ export const SpriteFighter = ({
   id,
   config,
   accent,
+  onStatus,
 }: {
   id: PlayerId
   config: SpriteFighterConfig
   accent: string
+  onStatus: (diagnostic: SpriteAssetDiagnostic) => void
 }) => {
   const fighter = useGameStore((state) => state.fighters[id])
   const animationName = getSpriteAnimation(fighter)
   const animation = config.animations[animationName]
   const loaded = useSafeTexture(animation.filePath)
+  const alternateAnimation = animation.fallbackAnimation
+    ? config.animations[animation.fallbackAnimation]
+    : undefined
+  const alternateLoaded = useSafeTexture(alternateAnimation?.filePath)
   const elapsed = useRef(0)
   const frame = useRef(0)
+  const transition = useRef(1)
+  const visual = useRef<THREE.Group>(null)
   const fallbackTexture = useMemo(() => createFallbackTexture(accent), [accent])
-  const texture = loaded.texture ?? fallbackTexture
-  const frameCount = loaded.texture ? animation.frameCount : 1
+  const playback = loaded.texture ? animation : alternateLoaded.texture && alternateAnimation ? alternateAnimation : animation
+  const texture = loaded.texture ?? alternateLoaded.texture ?? fallbackTexture
+  const usingGeneratedFallback = texture === fallbackTexture
+  const usingAlternateSheet = !loaded.texture && Boolean(alternateLoaded.texture)
+  const frameCount = usingGeneratedFallback ? 1 : playback.frameCount
   const uniforms = useMemo(
     () => ({
       uMap: { value: texture },
       uFrame: { value: 0 },
       uFrameCount: { value: frameCount },
-      uFilterPaleBackground: { value: loaded.texture ? 1 : 0 },
+      uFilterPaleBackground: { value: usingGeneratedFallback ? 0 : 1 },
+      uOpacity: { value: 1 },
     }),
-    [frameCount, loaded.texture, texture],
+    [frameCount, texture, usingGeneratedFallback],
   )
 
   useEffect(() => {
     elapsed.current = 0
     frame.current = 0
+    transition.current = 0
+    uniforms.uFrame.value = 0
   }, [animationName])
 
   useEffect(() => () => fallbackTexture.dispose(), [fallbackTexture])
 
+  useEffect(() => {
+    const message =
+      loaded.status === 'loaded'
+        ? `Loaded ${animation.filePath}`
+        : loaded.status === 'error'
+          ? usingAlternateSheet
+            ? `Missing ${animation.filePath}; using ${animation.fallbackAnimation} sheet fallback.`
+            : `Missing ${animation.filePath}; using fallback silhouette.`
+          : `Loading ${animation.filePath}`
+    onStatus({ animation: animationName, filePath: animation.filePath, status: loaded.status, message })
+  }, [animation.fallbackAnimation, animation.filePath, animationName, loaded.status, onStatus, usingAlternateSheet])
+
   useFrame((_, delta) => {
-    if (!loaded.texture) return
-    elapsed.current += delta
-    const nextFrame = Math.floor(elapsed.current * animation.fps)
-    frame.current = animation.loop
-      ? nextFrame % animation.frameCount
-      : Math.min(animation.frameCount - 1, nextFrame)
-    uniforms.uFrame.value = frame.current
+    const state = useGameStore.getState()
+    const frozen = state.phase === 'paused' || state.hitStop > 0
+    if (!frozen) {
+      elapsed.current += delta
+      transition.current = Math.min(1, transition.current + delta / 0.085)
+    }
+
+    if (!usingGeneratedFallback) {
+      const nextFrame = Math.floor(elapsed.current * playback.fps)
+      frame.current = playback.loop
+        ? nextFrame % playback.frameCount
+        : Math.min(playback.frameCount - 1, nextFrame)
+      uniforms.uFrame.value = frame.current
+    }
+
+    const ease = 1 - Math.pow(1 - transition.current, 3)
+    uniforms.uOpacity.value = 0.72 + ease * 0.28
+    if (visual.current) {
+      const settle = 0.94 + ease * 0.06
+      visual.current.scale.setScalar(settle)
+      visual.current.position.y = (1 - ease) * -0.045
+    }
   })
 
-  const source = loaded.texture?.image as { width?: number; height?: number } | undefined
-  const frameWidth = config.frameWidth ?? (source?.width ?? 1) / animation.frameCount
+  const source = (usingGeneratedFallback ? undefined : texture.image) as { width?: number; height?: number } | undefined
+  const frameWidth = config.frameWidth ?? (source?.width ?? 1) / playback.frameCount
   const frameHeight = config.frameHeight ?? source?.height ?? 1
-  const worldHeight = config.scale
+  const worldHeight = config.scale * (animation.scale ?? 1)
   const worldWidth = worldHeight * (frameWidth / frameHeight)
 
   return (
     <group
-      position={[config.horizontalOffset, config.verticalOffset, 0]}
+      position={[
+        config.horizontalOffset + (animation.horizontalOffset ?? 0),
+        config.verticalOffset + (animation.verticalOffset ?? 0),
+        0,
+      ]}
       scale={[fighter.facing, 1, 1]}
     >
-      <mesh position={[0, worldHeight / 2, 0.18]} renderOrder={15}>
-        <planeGeometry args={[worldWidth, worldHeight]} />
-        <shaderMaterial
-          depthWrite={false}
-          fragmentShader={fragmentShader}
-          side={THREE.DoubleSide}
-          toneMapped={false}
-          transparent
-          uniforms={uniforms}
-          vertexShader={vertexShader}
-        />
-      </mesh>
+      <group ref={visual}>
+        <mesh position={[0, worldHeight / 2, 0.18]} renderOrder={15}>
+          <planeGeometry args={[worldWidth, worldHeight]} />
+          <shaderMaterial
+            depthWrite={false}
+            fragmentShader={fragmentShader}
+            side={THREE.DoubleSide}
+            toneMapped={false}
+            transparent
+            uniforms={uniforms}
+            vertexShader={vertexShader}
+          />
+        </mesh>
+      </group>
     </group>
   )
 }
