@@ -1,8 +1,8 @@
 export type PlayerId = 'p1' | 'p2'
 export type MatchPhase = 'title' | 'fight' | 'paused' | 'ko'
 export type AttackType = 'light' | 'heavy' | 'kick' | 'special'
-export type FighterRenderMode = 'glb' | 'sprite'
 export type SpriteFighterId = 'fighter-1' | 'fighter-2'
+export type P2ControlMode = 'ai-easy' | 'ai-medium' | 'ai-hard' | 'player'
 
 export type AttackState = {
   type: AttackType
@@ -10,23 +10,13 @@ export type AttackState = {
   connected: boolean
 }
 
-export type FighterModelSettings = {
-  scale: number
-  rotationY: number
-  verticalOffset: number
-  horizontalOffset: number
-}
+export type AssetLoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-export type ModelLoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
-
-export type ModelDiagnostic = {
-  modelUrl: string
-  status: ModelLoadStatus
+export type SpriteAssetDiagnostic = {
+  animation: string
+  filePath: string
+  status: AssetLoadStatus
   message: string
-  meshes?: number
-  nodes?: number
-  normalizedScale?: number
-  sourceSize?: { x: number; y: number; z: number }
 }
 
 export type FighterStats = {
@@ -37,21 +27,7 @@ export type FighterStats = {
 
 export type FighterLoadout = {
   name: string
-  modelUrl: string
   spriteFighterId: SpriteFighterId
-  modelSettings: FighterModelSettings
-  stats: FighterStats
-  specialMove: string
-}
-
-export type UploadedCharacter = {
-  id: string
-  name: string
-  modelUrl: string
-  spriteFighterId?: SpriteFighterId
-  scale: number
-  rotation: number
-  verticalOffset: number
   stats: FighterStats
   specialMove: string
 }
@@ -59,9 +35,7 @@ export type UploadedCharacter = {
 export type FighterState = {
   id: PlayerId
   name: string
-  modelUrl: string
   spriteFighterId: SpriteFighterId
-  modelSettings: FighterModelSettings
   stats: FighterStats
   specialMove: string
   accent: string
@@ -81,6 +55,18 @@ export type FighterState = {
   ko: boolean
   victorious: boolean
   meter: number
+}
+
+export type FighterInput = {
+  moveLeft: boolean
+  moveRight: boolean
+  jump: boolean
+  block: boolean
+  dash: boolean
+  lightPunch: boolean
+  heavyPunch: boolean
+  kick: boolean
+  special: boolean
 }
 
 export type HitSpark = {

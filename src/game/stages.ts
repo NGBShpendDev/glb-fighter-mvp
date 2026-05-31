@@ -114,7 +114,7 @@ export const STAGES: Record<string, StageConfig> = {
     ],
     foregroundOverlay: streetAlleyAsset('fg-overlay.png'),
     // The submitted overlay is opaque, so keep it subtle over the fighters.
-    foregroundOpacity: 0.12,
+    foregroundOpacity: 0.085,
     foregroundFollowFactor: 0.26,
     floorTexture: streetAlleyAsset('floor.png'),
     floorTextureRepeat: [1, 1],
