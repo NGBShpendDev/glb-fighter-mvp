@@ -8,6 +8,7 @@ import type {
   AttackType,
   FighterLoadout,
   FighterModelSettings,
+  FighterRenderMode,
   FighterState,
   FighterStats,
   HitSpark,
@@ -17,6 +18,7 @@ import type {
   UploadedCharacter,
   VfxEvent,
   VfxKind,
+  SpriteFighterId,
 } from '../game/types'
 
 const UPLOADED_CHARACTERS_KEY = 'ape-fighter-uploaded-characters'
@@ -49,6 +51,7 @@ const persistUploadedCharacters = (characters: UploadedCharacter[]) => {
 const uploadedCharacterLoadout = (character: UploadedCharacter): FighterLoadout => ({
   name: character.name,
   modelUrl: character.modelUrl,
+  spriteFighterId: character.spriteFighterId ?? 'fighter-1',
   modelSettings: {
     scale: character.scale,
     rotationY: character.rotation,
@@ -63,6 +66,7 @@ const makeFighter = (
   id: PlayerId,
   name: string,
   modelUrl: string,
+  spriteFighterId: SpriteFighterId,
   accent: string,
   modelSettings: FighterModelSettings,
   stats: FighterStats,
@@ -72,6 +76,7 @@ const makeFighter = (
   id,
   name,
   modelUrl,
+  spriteFighterId,
   modelSettings,
   stats,
   specialMove,
@@ -98,6 +103,7 @@ const defaultLoadout: Record<PlayerId, FighterLoadout> = {
   p1: {
     name: 'NEON STRIKER',
     modelUrl: '/models/fighter-1.glb',
+    spriteFighterId: 'fighter-1',
     modelSettings: { ...DEFAULT_MODEL_SETTINGS },
     stats: { power: 76, speed: 82, defense: 62 },
     specialMove: 'NEON OVERDRIVE',
@@ -105,6 +111,7 @@ const defaultLoadout: Record<PlayerId, FighterLoadout> = {
   p2: {
     name: 'CRIMSON RIOT',
     modelUrl: '/models/fighter-2.glb',
+    spriteFighterId: 'fighter-2',
     modelSettings: { ...DEFAULT_MODEL_SETTINGS },
     stats: { power: 88, speed: 58, defense: 78 },
     specialMove: 'RIOT BREAKER',
@@ -116,6 +123,7 @@ const freshFighters = (loadout: Record<PlayerId, FighterLoadout>): Record<Player
     'p1',
     loadout.p1.name,
     loadout.p1.modelUrl,
+    loadout.p1.spriteFighterId,
     '#54e8ff',
     { ...loadout.p1.modelSettings },
     loadout.p1.stats,
@@ -126,6 +134,7 @@ const freshFighters = (loadout: Record<PlayerId, FighterLoadout>): Record<Player
     'p2',
     loadout.p2.name,
     loadout.p2.modelUrl,
+    loadout.p2.spriteFighterId,
     '#ff5267',
     { ...loadout.p2.modelSettings },
     loadout.p2.stats,
@@ -163,6 +172,7 @@ type GameStore = {
   perfect: boolean
   soundEnabled: boolean
   debugHitboxes: boolean
+  fighterRenderMode: FighterRenderMode
   nextSparkId: number
   nextVfxId: number
   startMatch: () => void
@@ -178,6 +188,7 @@ type GameStore = {
   useUploadedCharacter: (id: PlayerId, character: UploadedCharacter) => void
   setKey: (code: string, down: boolean) => void
   toggleHitboxes: () => void
+  setFighterRenderMode: (mode: FighterRenderMode) => void
   toggleSound: () => void
   setSelectedStageId: (stageId: string) => void
   update: (delta: number) => void
@@ -340,6 +351,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   perfect: false,
   soundEnabled: true,
   debugHitboxes: false,
+  fighterRenderMode: 'glb',
   nextSparkId: 1,
   nextVfxId: 1,
 
@@ -474,6 +486,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleHitboxes: () => set((state) => ({ debugHitboxes: !state.debugHitboxes })),
+  setFighterRenderMode: (fighterRenderMode) => set({ fighterRenderMode }),
   toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
   setSelectedStageId: (selectedStageId) => set({ selectedStageId }),
 
