@@ -1,6 +1,13 @@
 import { P2_CONTROL_OPTIONS } from '../game/ai'
 import { STAGE_OPTIONS } from '../game/stages'
-import { getFighterVisualState, getSpriteAnimation, SPRITE_FIGHTERS } from '../game/spriteFighters'
+import {
+  getFighterVisualState,
+  getSpriteAnimation,
+  getSpriteAnimationConfig,
+  SPRITE_ANIMATION_NAMES,
+  SPRITE_FIGHTERS,
+} from '../game/spriteFighters'
+import type { SpriteAnimationName } from '../game/spriteAnimator'
 import type { PlayerId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { CharacterSelect } from './CharacterSelect'
@@ -100,14 +107,16 @@ const StageSelect = () => {
 const FighterVisualDebug = ({ id }: { id: PlayerId }) => {
   const fighter = useGameStore((state) => state.fighters[id])
   const spriteDiagnostic = useGameStore((state) => state.spriteDiagnostics[id])
-  const animationName = getSpriteAnimation(fighter)
-  const animation = SPRITE_FIGHTERS[fighter.spriteFighterId].animations[animationName]
+  const animationName = (spriteDiagnostic.animation || getSpriteAnimation(fighter)) as SpriteAnimationName
+  const animation = getSpriteAnimationConfig(SPRITE_FIGHTERS[fighter.spriteFighterId], animationName)
 
   return (
     <div>
       <b>{id.toUpperCase()}</b>
       <span>{getFighterVisualState(fighter)}</span>
-      <span>{animationName} // {animation.frameCount} frames</span>
+      <span>{animationName} // FRAME {spriteDiagnostic.frameIndex + 1}/{spriteDiagnostic.frameCount} // {spriteDiagnostic.fps || animation.fps} FPS</span>
+      <span>V {fighter.vx.toFixed(2)}, {fighter.vy.toFixed(2)} // FACE {fighter.facing === 1 ? 'RIGHT' : 'LEFT'} // {fighter.grounded ? 'GROUNDED' : 'AIRBORNE'}</span>
+      <span>{fighter.attack ? `ATTACK ${fighter.attack.type.toUpperCase()}` : 'ATTACK OFF'} // {fighter.blocking ? 'BLOCK ON' : 'BLOCK OFF'} // {fighter.hitStun > 0 ? 'HIT ON' : 'HIT OFF'} // {fighter.ko ? 'KO ON' : 'KO OFF'}</span>
       {spriteDiagnostic.status === 'error' && <em>FALLBACK // missing {spriteDiagnostic.animation}.png</em>}
     </div>
   )
@@ -115,15 +124,45 @@ const FighterVisualDebug = ({ id }: { id: PlayerId }) => {
 
 const FighterDebugOverlay = () => {
   const phase = useGameStore((state) => state.phase)
+  const debugSprites = useGameStore((state) => state.debugSprites)
   const p2ControlMode = useGameStore((state) => state.p2ControlMode)
   const p2ControlLabel = P2_CONTROL_OPTIONS.find((option) => option.mode === p2ControlMode)?.label ?? p2ControlMode
-  if (phase !== 'fight' && phase !== 'paused') return null
+  const spriteAnimationPaused = useGameStore((state) => state.spriteAnimationPaused)
+  const spriteAnimationPreview = useGameStore((state) => state.spriteAnimationPreview)
+  const debugSpriteBounds = useGameStore((state) => state.debugSpriteBounds)
+  const debugSpriteOrigin = useGameStore((state) => state.debugSpriteOrigin)
+  const toggleSpriteAnimationPause = useGameStore((state) => state.toggleSpriteAnimationPause)
+  const stepSpriteAnimation = useGameStore((state) => state.stepSpriteAnimation)
+  const setSpriteAnimationPreview = useGameStore((state) => state.setSpriteAnimationPreview)
+  const toggleSpriteBounds = useGameStore((state) => state.toggleSpriteBounds)
+  const toggleSpriteOrigin = useGameStore((state) => state.toggleSpriteOrigin)
+  if (!debugSprites || (phase !== 'fight' && phase !== 'paused')) return null
 
   return (
     <aside className="fighter-visual-debug">
       <strong>SPRITE RENDERER // P2 {p2ControlLabel}</strong>
       <FighterVisualDebug id="p1" />
       <FighterVisualDebug id="p2" />
+      <div className="fighter-visual-debug__controls">
+        <label>
+          PREVIEW
+          <select
+            value={spriteAnimationPreview ?? ''}
+            onChange={(event) => setSpriteAnimationPreview((event.target.value || null) as SpriteAnimationName | null)}
+          >
+            <option value="">LIVE MATCH</option>
+            {SPRITE_ANIMATION_NAMES.map((animation) => (
+              <option key={animation} value={animation}>{animation}</option>
+            ))}
+          </select>
+        </label>
+        <button type="button" onClick={toggleSpriteAnimationPause}>
+          {spriteAnimationPaused ? 'PLAY' : 'PAUSE'}
+        </button>
+        <button type="button" onClick={stepSpriteAnimation}>STEP +1</button>
+        <button type="button" onClick={toggleSpriteBounds}>BOUNDS {debugSpriteBounds ? 'ON' : 'OFF'}</button>
+        <button type="button" onClick={toggleSpriteOrigin}>ORIGIN {debugSpriteOrigin ? 'ON' : 'OFF'}</button>
+      </div>
     </aside>
   )
 }
@@ -241,6 +280,7 @@ export const GameUI = () => {
   const timer = useGameStore((state) => Math.ceil(state.timer))
   const impactFlash = useGameStore((state) => state.shake > 0.25)
   const debugHitboxes = useGameStore((state) => state.debugHitboxes)
+  const debugSprites = useGameStore((state) => state.debugSprites)
   const roundCallout = useGameStore((state) =>
     state.phase === 'fight' && state.roundIntro > 0 ? (state.roundIntro > 0.82 ? 'ROUND 1' : 'FIGHT!') : null,
   )
@@ -261,7 +301,7 @@ export const GameUI = () => {
       </header>
       <div className={`impact-flash ${impactFlash ? 'impact-flash--active' : ''}`} />
       <div className="debug-note">
-        <kbd>B</kbd> HITBOXES {debugHitboxes ? 'ON' : 'OFF'}
+        <kbd>B</kbd> HITBOXES {debugHitboxes ? 'ON' : 'OFF'} // <kbd>V</kbd> SPRITE DEBUG {debugSprites ? 'ON' : 'OFF'}
       </div>
       <FighterDebugOverlay />
       <button className="sound-toggle" type="button" onClick={toggleSound}>

@@ -1,5 +1,5 @@
 import { P2_CONTROL_OPTIONS } from '../game/ai'
-import { SPRITE_FIGHTER_OPTIONS } from '../game/spriteFighters'
+import { countSpriteAnimationFallbacks, SPRITE_ANIMATION_NAMES, SPRITE_FIGHTER_OPTIONS } from '../game/spriteFighters'
 import type { PlayerId, SpriteFighterId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { UiAtlasSprite } from './UiAtlasSprite'
@@ -8,7 +8,7 @@ const FighterPicker = ({ id }: { id: PlayerId }) => {
   const loadout = useGameStore((state) => state.loadout[id])
   const setFighterSprite = useGameStore((state) => state.setFighterSprite)
   const config = SPRITE_FIGHTER_OPTIONS.find((fighter) => fighter.id === loadout.spriteFighterId)!
-  const fallbackCount = Object.values(config.animations).filter((animation) => animation.fallbackAnimation).length
+  const fallbackCount = countSpriteAnimationFallbacks(config)
   const label = id === 'p1' ? 'FIGHTER 1' : 'FIGHTER 2'
 
   return (
@@ -19,7 +19,11 @@ const FighterPicker = ({ id }: { id: PlayerId }) => {
         <strong>{loadout.name}</strong>
       </div>
       <div className="fighter-picker__portrait">
-        {config.anchorPath ? <img src={config.anchorPath} alt={`${config.name} portrait`} /> : <span>SPRITE</span>}
+        {config.portraitPath || config.anchorPath ? (
+          <img src={config.portraitPath ?? config.anchorPath} alt={`${config.name} portrait`} />
+        ) : (
+          <span>SPRITE</span>
+        )}
       </div>
       <label className="sprite-choice">
         <span>SPRITE FIGHTER</span>
@@ -41,7 +45,7 @@ const FighterPicker = ({ id }: { id: PlayerId }) => {
       </div>
       <div className="fighter-special">{loadout.specialMove}</div>
       <p className="sprite-asset-summary">
-        {Object.keys(config.animations).length} ANIMATIONS // {fallbackCount} SAFE FALLBACKS
+        {SPRITE_ANIMATION_NAMES.length} ANIMATION SLOTS // {fallbackCount} SAFE FALLBACKS
       </p>
     </article>
   )
