@@ -3,7 +3,8 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { useRef, useState } from 'react'
 import * as THREE from 'three'
 import { BUNDLED_MODELS, DEFAULT_MODEL_SETTINGS } from '../game/models'
-import type { FighterLoadout, FighterModelSettings, ModelDiagnostic, PlayerId } from '../game/types'
+import { SPRITE_FIGHTER_OPTIONS } from '../game/spriteFighters'
+import type { FighterLoadout, FighterModelSettings, ModelDiagnostic, PlayerId, SpriteFighterId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { GlbModel } from './models/GlbModel'
 import { UiAtlasSprite } from './UiAtlasSprite'
@@ -133,6 +134,21 @@ const FighterPicker = ({ id }: { id: PlayerId }) => {
           ))}
         </select>
       </label>
+      <label className="model-choice">
+        <span>SPRITE SHEET FIGHTER</span>
+        <select
+          value={loadout.spriteFighterId}
+          onChange={(event) =>
+            setFighterLoadout(id, { spriteFighterId: event.target.value as SpriteFighterId })
+          }
+        >
+          {SPRITE_FIGHTER_OPTIONS.map((fighter) => (
+            <option key={fighter.id} value={fighter.id}>
+              {fighter.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <SettingSlider
         label="SCALE"
         value={loadout.modelSettings.scale}
@@ -186,7 +202,7 @@ export const CharacterSelect = () => (
     <div className="character-select__heading">
       <span className="eyebrow">CHARACTER SELECT // LOCAL MODEL LAB</span>
       <h3>Choose your fighters</h3>
-      <p>Rotate the previews and tune each GLB before the round starts.</p>
+      <p>Rotate and tune each GLB preview. Sprite mode keeps these 3D skins available for testing.</p>
     </div>
     <div className="fighter-picker-grid">
       <FighterPicker id="p1" />

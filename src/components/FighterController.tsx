@@ -1,11 +1,11 @@
 import { useFrame } from '@react-three/fiber'
-import { useCallback, useRef } from 'react'
+import { useRef } from 'react'
 import * as THREE from 'three'
 import { ATTACKS } from '../game/constants'
 import { getAttackHitbox, getHurtbox } from '../game/hitboxes'
-import type { ModelDiagnostic, PlayerId } from '../game/types'
+import type { PlayerId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
-import { GlbModel } from './models/GlbModel'
+import { FighterRenderer } from './fighters/FighterRenderer'
 
 const DebugBoxes = ({ id }: { id: PlayerId }) => {
   const fighter = useGameStore((state) => state.fighters[id])
@@ -38,13 +38,14 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
   useFrame(({ clock }) => {
     if (!root.current || !skin.current) return
     const fighter = useGameStore.getState().fighters[id]
+    const renderMode = useGameStore.getState().fighterRenderMode
     const idle = Math.sin(clock.elapsedTime * 4.2 + (id === 'p1' ? 0 : 1.4))
     const settings = fighter.modelSettings
 
     root.current.position.set(fighter.x, fighter.y, 0)
     root.current.rotation.set(0, 0, 0)
     skin.current.position.set(settings.horizontalOffset, settings.verticalOffset + idle * 0.035, 0)
-    skin.current.rotation.set(0, settings.rotationY + (fighter.facing === 1 ? 0 : Math.PI), 0)
+    skin.current.rotation.set(0, renderMode === 'glb' ? settings.rotationY + (fighter.facing === 1 ? 0 : Math.PI) : 0, 0)
     skin.current.scale.setScalar(1)
 
     if (!fighter.grounded) {
@@ -61,7 +62,7 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
 
       if (fighter.attack.type === 'kick') {
         skin.current.rotation.z = -pulse * 0.72
-        skin.current.rotation.y += fighter.facing * pulse * Math.PI * 1.65
+        if (renderMode === 'glb') skin.current.rotation.y += fighter.facing * pulse * Math.PI * 1.65
       }
 
       if (fighter.attack.type === 'special') {
@@ -94,26 +95,13 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
     }
   })
 
-  const modelUrl = useGameStore((state) => state.fighters[id].modelUrl)
-  const modelSettings = useGameStore((state) => state.fighters[id].modelSettings)
   const accent = useGameStore((state) => state.fighters[id].accent)
   const specialActive = useGameStore((state) => state.fighters[id].attack?.type === 'special')
   const debugHitboxes = useGameStore((state) => state.debugHitboxes)
-  const setModelDiagnostic = useGameStore((state) => state.setModelDiagnostic)
-  const reportModelStatus = useCallback(
-    (diagnostic: ModelDiagnostic) => setModelDiagnostic(id, diagnostic),
-    [id, setModelDiagnostic],
-  )
-
   return (
     <group ref={root}>
       <group ref={skin}>
-        <GlbModel
-          modelUrl={modelUrl}
-          scale={modelSettings.scale}
-          accent={accent}
-          onStatus={reportModelStatus}
-        />
+        <FighterRenderer id={id} />
       </group>
       {specialActive && (
         <group position={[0, 1.35, 0]} rotation={[Math.PI / 2, 0, 0]}>

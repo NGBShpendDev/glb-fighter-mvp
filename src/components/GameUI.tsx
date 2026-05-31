@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { STAGE_OPTIONS } from '../game/stages'
+import { getFighterVisualState, getSpriteAnimation, SPRITE_FIGHTERS } from '../game/spriteFighters'
+import type { FighterRenderMode, PlayerId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { CharacterSelect } from './CharacterSelect'
 import { AudioController } from './AudioController'
@@ -13,6 +15,7 @@ const HealthBar = ({ player }: { player: 'p1' | 'p2' }) => {
   const meter = useGameStore((state) => state.fighters[player].meter)
   const specialMove = useGameStore((state) => state.fighters[player].specialMove)
   const modelDiagnostic = useGameStore((state) => state.modelDiagnostics[player])
+  const renderMode = useGameStore((state) => state.fighterRenderMode)
   const status = useGameStore((state) => {
     const fighter = state.fighters[player]
     return fighter.blocking ? 'GUARD' : fighter.hitStun > 0 ? 'STUN' : fighter.cooldown > 0 ? 'RECOVER' : 'READY'
@@ -41,8 +44,9 @@ const HealthBar = ({ player }: { player: 'p1' | 'p2' }) => {
         <b>{specialMove}</b>
       </div>
       <div className={`fighter-model-status fighter-model-status--${modelDiagnostic.status}`}>
-        MODEL {modelDiagnostic.status.toUpperCase()}
-        {modelDiagnostic.status === 'error' ? ` // ${modelDiagnostic.message}` : ''}
+        {renderMode === 'sprite'
+          ? 'SPRITE MODE'
+          : `MODEL ${modelDiagnostic.status.toUpperCase()}${modelDiagnostic.status === 'error' ? ` // ${modelDiagnostic.message}` : ''}`}
       </div>
     </div>
   )
@@ -98,6 +102,65 @@ const StageSelect = () => {
   )
 }
 
+const RenderModeSelect = () => {
+  const fighterRenderMode = useGameStore((state) => state.fighterRenderMode)
+  const setFighterRenderMode = useGameStore((state) => state.setFighterRenderMode)
+  const options: Array<{ mode: FighterRenderMode; title: string; description: string }> = [
+    { mode: 'glb', title: 'GLB MODE', description: '3D skins with procedural poses' },
+    { mode: 'sprite', title: 'SPRITE MODE', description: '2.5D sheets with safe fallbacks' },
+  ]
+
+  return (
+    <section className="render-mode-select">
+      <div>
+        <span className="eyebrow">FIGHTER RENDERER</span>
+        <h3>Choose the match visuals.</h3>
+      </div>
+      <div className="render-mode-select__grid">
+        {options.map((option) => (
+          <button
+            className={`render-mode-choice ${fighterRenderMode === option.mode ? 'render-mode-choice--active' : ''}`}
+            key={option.mode}
+            type="button"
+            onClick={() => setFighterRenderMode(option.mode)}
+          >
+            <strong>{option.title}</strong>
+            <small>{option.description}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const FighterVisualDebug = ({ id }: { id: PlayerId }) => {
+  const fighter = useGameStore((state) => state.fighters[id])
+  const animationName = getSpriteAnimation(fighter)
+  const animation = SPRITE_FIGHTERS[fighter.spriteFighterId].animations[animationName]
+
+  return (
+    <div>
+      <b>{id.toUpperCase()}</b>
+      <span>{getFighterVisualState(fighter)}</span>
+      <span>{animationName} // {animation.frameCount} frames</span>
+    </div>
+  )
+}
+
+const FighterDebugOverlay = () => {
+  const phase = useGameStore((state) => state.phase)
+  const fighterRenderMode = useGameStore((state) => state.fighterRenderMode)
+  if (phase !== 'fight' && phase !== 'paused') return null
+
+  return (
+    <aside className="fighter-visual-debug">
+      <strong>RENDER MODE // {fighterRenderMode.toUpperCase()}</strong>
+      <FighterVisualDebug id="p1" />
+      <FighterVisualDebug id="p2" />
+    </aside>
+  )
+}
+
 const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: () => void }) => {
   const startMatch = useGameStore((state) => state.startMatch)
   return (
@@ -150,6 +213,7 @@ const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: (
           </div>
         </div>
         <StageSelect />
+        <RenderModeSelect />
         <CharacterSelect />
       </div>
     </div>
@@ -238,6 +302,7 @@ export const GameUI = () => {
       <div className="debug-note">
         <kbd>B</kbd> HITBOXES {debugHitboxes ? 'ON' : 'OFF'}
       </div>
+      <FighterDebugOverlay />
       <button className="sound-toggle" type="button" onClick={toggleSound}>
         SOUND {soundEnabled ? 'ON' : 'OFF'}
       </button>
