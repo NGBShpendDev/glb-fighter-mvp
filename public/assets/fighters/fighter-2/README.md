@@ -1,19 +1,20 @@
-# Fighter 2 Sprite Sheets
+# Crimson Riot Sprite Sheets
 
-Drop one-row transparent PNG sprite sheets in this folder:
+The submitted Fighter 2 sprite sheets live in this folder:
 
 ```text
+anchor.png
 idle.png
 walk.png
 jump.png
 block.png
-lightPunch.png
+light-punch.png
 kick.png
 hit.png
 ko.png
 victory.png
 ```
 
-Each frame must use the same width and height. Configure the frame dimensions, frame counts, FPS values, and looping behavior in `src/game/spriteFighters.ts`.
+Each animation is a one-row PNG. Frame dimensions are inferred automatically from the image width and configured frame count in `src/game/spriteFighters.ts`.
 
-Until a sheet exists, sprite mode displays a generated fallback fighter.
+`heavy-punch.png` and `special.png` are still optional future additions. Until those exist, heavy punch reuses `light-punch.png` and special reuses `kick.png`. If any sprite sheet fails to load, sprite mode gracefully falls back to the closest configured animation or the generated placeholder fighter.
