@@ -1,29 +1,48 @@
 import { useState } from 'react'
+import { STAGE_OPTIONS } from '../game/stages'
 import { useGameStore } from '../store/gameStore'
 import { CharacterSelect } from './CharacterSelect'
 import { AudioController } from './AudioController'
+import { DebugModelViewer } from './DebugModelViewer'
+import { UiAtlasSprite } from './UiAtlasSprite'
 import { UploadCharacterPage } from './UploadCharacterPage'
 
 const HealthBar = ({ player }: { player: 'p1' | 'p2' }) => {
-  const fighter = useGameStore((state) => state.fighters[player])
+  const name = useGameStore((state) => state.fighters[player].name)
+  const health = useGameStore((state) => state.fighters[player].health)
+  const meter = useGameStore((state) => state.fighters[player].meter)
+  const specialMove = useGameStore((state) => state.fighters[player].specialMove)
+  const modelDiagnostic = useGameStore((state) => state.modelDiagnostics[player])
+  const status = useGameStore((state) => {
+    const fighter = state.fighters[player]
+    return fighter.blocking ? 'GUARD' : fighter.hitStun > 0 ? 'STUN' : fighter.cooldown > 0 ? 'RECOVER' : 'READY'
+  })
   return (
     <div className={`fighter-hud fighter-hud--${player}`}>
       <div className="fighter-hud__name">
         <span>{player.toUpperCase()}</span>
-        {fighter.name}
+        {name}
       </div>
-      <div className="health-frame">
-        <div className="health-fill" style={{ width: `${fighter.health}%` }} />
-        <div className="health-chip" style={{ width: `${100 - fighter.health}%` }} />
-        <div className="health-frame__ticks" />
+      <div className="arcade-health-shell">
+        <UiAtlasSprite region={`hud-${player}`} />
+        <div className="health-frame">
+          <div className="health-fill" style={{ width: `${health}%` }} />
+          <div className="health-chip" style={{ width: `${100 - health}%` }} />
+          <div className="health-frame__shine" />
+          <div className="health-frame__ticks" />
+        </div>
       </div>
       <div className="fighter-hud__meta">
-        <span>{fighter.health.toString().padStart(3, '0')}</span>
-        <i>{fighter.blocking ? 'GUARD' : fighter.hitStun > 0 ? 'STUN' : fighter.cooldown > 0 ? 'RECOVER' : 'READY'}</i>
+        <span>{health.toString().padStart(3, '0')}</span>
+        <i>{status}</i>
       </div>
       <div className="meter-frame">
-        <div className="meter-fill" style={{ width: `${fighter.meter}%` }} />
-        <b>{fighter.specialMove}</b>
+        <div className="meter-fill" style={{ width: `${meter}%` }} />
+        <b>{specialMove}</b>
+      </div>
+      <div className={`fighter-model-status fighter-model-status--${modelDiagnostic.status}`}>
+        MODEL {modelDiagnostic.status.toUpperCase()}
+        {modelDiagnostic.status === 'error' ? ` // ${modelDiagnostic.message}` : ''}
       </div>
     </div>
   )
@@ -47,7 +66,39 @@ const ControlColumn = ({
   </div>
 )
 
-const TitleScreen = ({ onUpload }: { onUpload: () => void }) => {
+const StageSelect = () => {
+  const selectedStageId = useGameStore((state) => state.selectedStageId)
+  const setSelectedStageId = useGameStore((state) => state.setSelectedStageId)
+
+  return (
+    <section className="stage-select">
+      <div>
+        <span className="eyebrow">STAGE SELECT</span>
+        <h3>Choose the battleground.</h3>
+      </div>
+      <div className="stage-select__grid">
+        {STAGE_OPTIONS.map((stage) => (
+          <button
+            className={`stage-choice ${selectedStageId === stage.id ? 'stage-choice--active' : ''}`}
+            key={stage.id}
+            type="button"
+            onClick={() => setSelectedStageId(stage.id)}
+          >
+            {stage.previewThumbnail ? (
+              <img src={stage.previewThumbnail} alt="" />
+            ) : (
+              <span className="stage-choice__fallback">3D</span>
+            )}
+            <strong>{stage.name}</strong>
+            <small>{stage.artEnabled ? 'LAYERED ART' : 'PROCEDURAL FALLBACK'}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: () => void }) => {
   const startMatch = useGameStore((state) => state.startMatch)
   return (
     <div className="overlay overlay--title">
@@ -64,6 +115,9 @@ const TitleScreen = ({ onUpload }: { onUpload: () => void }) => {
           </button>
           <button className="secondary-button" type="button" onClick={onUpload}>
             UPLOAD CHARACTER
+          </button>
+          <button className="secondary-button" type="button" onClick={onViewer}>
+            DEBUG MODEL VIEWER
           </button>
         </div>
         <p className="title-card__space">PRESS SPACE TO START</p>
@@ -95,6 +149,7 @@ const TitleScreen = ({ onUpload }: { onUpload: () => void }) => {
             />
           </div>
         </div>
+        <StageSelect />
         <CharacterSelect />
       </div>
     </div>
@@ -103,35 +158,70 @@ const TitleScreen = ({ onUpload }: { onUpload: () => void }) => {
 
 const KoScreen = () => {
   const winner = useGameStore((state) => state.winner)
-  const winnerName = useGameStore((state) => (winner ? state.fighters[winner].name : 'NO ONE'))
+  const winnerName = useGameStore((state) => (winner ? state.fighters[winner].name : 'DRAW'))
   const rematch = useGameStore((state) => state.rematch)
   const perfect = useGameStore((state) => state.perfect)
+  const returnToTitle = useGameStore((state) => state.returnToTitle)
 
   return (
     <div className="overlay overlay--ko">
       <div className="ko-card">
+        <UiAtlasSprite region="panel" />
+        <UiAtlasSprite region="ko" />
         <span className="ko-word">K.O.</span>
         {perfect && <strong className="perfect-word">PERFECT</strong>}
-        <span className="eyebrow">WINNER</span>
+        <span className="eyebrow">{winner ? 'WINNER' : 'EVEN MATCH'}</span>
         <h2>{winnerName}</h2>
-        <p className="victory-word">VICTORY</p>
-        <button className="primary-button" onClick={rematch}>
-          RUN IT BACK
-        </button>
+        {winner && <UiAtlasSprite region={winner === 'p1' ? 'win-p1' : 'win-p2'} />}
+        <p className={`victory-word ${winner ? 'victory-word--win' : ''}`}>{winner ? 'WIN' : 'DRAW'}</p>
+        <div className="overlay-actions">
+          <button className="primary-button" onClick={rematch}>
+            RUN IT BACK
+          </button>
+          <button className="secondary-button" onClick={returnToTitle}>
+            CHARACTER SELECT
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const PauseScreen = () => {
+  const togglePause = useGameStore((state) => state.togglePause)
+  const restartMatch = useGameStore((state) => state.restartMatch)
+  const returnToTitle = useGameStore((state) => state.returnToTitle)
+
+  return (
+    <div className="overlay overlay--pause">
+      <div className="pause-card">
+        <UiAtlasSprite region="panel" />
+        <span className="eyebrow">MATCH PAUSED</span>
+        <h2>PAUSE</h2>
+        <p>Take a breath. Press <kbd>ESC</kbd> when both players are ready.</p>
+        <div className="pause-card__rule" />
+        <div className="overlay-actions">
+          <button className="primary-button" onClick={togglePause}>RESUME</button>
+          <button className="secondary-button" onClick={restartMatch}>RESTART ROUND</button>
+          <button className="secondary-button" onClick={returnToTitle}>CHARACTER SELECT</button>
+        </div>
       </div>
     </div>
   )
 }
 
 export const GameUI = () => {
-  const [screen, setScreen] = useState<'game' | 'upload'>('game')
+  const [screen, setScreen] = useState<'game' | 'upload' | 'viewer'>('game')
   const phase = useGameStore((state) => state.phase)
-  const timer = useGameStore((state) => state.timer)
-  const shake = useGameStore((state) => state.shake)
+  const timer = useGameStore((state) => Math.ceil(state.timer))
+  const impactFlash = useGameStore((state) => state.shake > 0.25)
   const debugHitboxes = useGameStore((state) => state.debugHitboxes)
-  const roundIntro = useGameStore((state) => state.roundIntro)
+  const roundCallout = useGameStore((state) =>
+    state.phase === 'fight' && state.roundIntro > 0 ? (state.roundIntro > 0.82 ? 'ROUND 1' : 'FIGHT!') : null,
+  )
   const soundEnabled = useGameStore((state) => state.soundEnabled)
   const toggleSound = useGameStore((state) => state.toggleSound)
+  const togglePause = useGameStore((state) => state.togglePause)
 
   return (
     <>
@@ -140,25 +230,35 @@ export const GameUI = () => {
         <HealthBar player="p1" />
         <div className="round-clock">
           <span>ROUND 01</span>
-          <b>{Math.ceil(timer).toString().padStart(2, '0')}</b>
+          <b>{timer.toString().padStart(2, '0')}</b>
         </div>
         <HealthBar player="p2" />
       </header>
-      <div className={`impact-flash ${shake > 0.25 ? 'impact-flash--active' : ''}`} />
+      <div className={`impact-flash ${impactFlash ? 'impact-flash--active' : ''}`} />
       <div className="debug-note">
         <kbd>B</kbd> HITBOXES {debugHitboxes ? 'ON' : 'OFF'}
       </div>
       <button className="sound-toggle" type="button" onClick={toggleSound}>
         SOUND {soundEnabled ? 'ON' : 'OFF'}
       </button>
-      {phase === 'fight' && roundIntro > 0 && (
-        <div className="round-callout">
-          <span>{roundIntro > 0.82 ? 'ROUND 1' : 'FIGHT!'}</span>
+      {phase === 'fight' && (
+        <button className="pause-toggle" type="button" onClick={togglePause}>
+          PAUSE <kbd>ESC</kbd>
+        </button>
+      )}
+      {roundCallout && (
+        <div className={`round-callout round-callout--${roundCallout === 'FIGHT!' ? 'fight' : 'round'}`}>
+          <UiAtlasSprite region={roundCallout === 'FIGHT!' ? 'fight' : 'round'} />
+          <span>{roundCallout}</span>
         </div>
       )}
-      {phase === 'title' && screen === 'game' && <TitleScreen onUpload={() => setScreen('upload')} />}
+      {phase === 'title' && screen === 'game' && (
+        <TitleScreen onUpload={() => setScreen('upload')} onViewer={() => setScreen('viewer')} />
+      )}
       {phase === 'title' && screen === 'upload' && <UploadCharacterPage onClose={() => setScreen('game')} />}
+      {phase === 'title' && screen === 'viewer' && <DebugModelViewer onClose={() => setScreen('game')} />}
       {phase === 'ko' && <KoScreen />}
+      {phase === 'paused' && <PauseScreen />}
     </>
   )
 }

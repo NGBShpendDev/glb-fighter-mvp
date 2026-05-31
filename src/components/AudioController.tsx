@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { getActiveStageMusic } from '../game/stages'
 import type { AttackType } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 
@@ -40,16 +41,33 @@ const playImpact = (context: AudioContext, kind: AttackType, blocked: boolean) =
 export const AudioController = () => {
   const context = useRef<AudioContext | null>(null)
   const musicTimer = useRef<number | null>(null)
+  const stageMusic = useRef<HTMLAudioElement | null>(null)
   const beat = useRef(0)
 
   useEffect(() => {
     const stopMusic = () => {
       if (musicTimer.current !== null) window.clearInterval(musicTimer.current)
       musicTimer.current = null
+      stageMusic.current?.pause()
     }
 
     const startMusic = () => {
       if (!context.current || musicTimer.current !== null || !useGameStore.getState().soundEnabled) return
+      const musicPath = getActiveStageMusic(useGameStore.getState().selectedStageId)
+      if (musicPath) {
+        if (!stageMusic.current) {
+          stageMusic.current = new Audio(musicPath)
+          stageMusic.current.loop = true
+          stageMusic.current.volume = 0.28
+          stageMusic.current.addEventListener('error', () => {
+            console.error(`[ART] failed ${musicPath}`)
+          })
+        }
+        void stageMusic.current.play().catch(() => {
+          console.info('[ART] stage music is waiting for browser audio permission.')
+        })
+        return
+      }
       musicTimer.current = window.setInterval(() => {
         if (!context.current || useGameStore.getState().phase === 'title') return
         const notes = [55, 55, 65.41, 49]
@@ -98,6 +116,7 @@ export const AudioController = () => {
       stopMusic()
       window.removeEventListener('pointerdown', enableAudio)
       window.removeEventListener('keydown', enableAudio)
+      stageMusic.current = null
       void context.current?.close()
     }
   }, [])

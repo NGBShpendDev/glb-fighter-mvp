@@ -1,96 +1,11 @@
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
-import { Component, Suspense, useMemo, useRef, type ErrorInfo, type ReactNode } from 'react'
+import { useCallback, useRef } from 'react'
 import * as THREE from 'three'
 import { ATTACKS } from '../game/constants'
 import { getAttackHitbox, getHurtbox } from '../game/hitboxes'
-import type { FighterModelSettings, PlayerId } from '../game/types'
+import type { ModelDiagnostic, PlayerId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
-
-const TARGET_SKIN_HEIGHT = 2.75
-
-class SkinErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode; resetKey: string },
-  { failed: boolean }
-> {
-  state = { failed: false }
-
-  static getDerivedStateFromError() {
-    return { failed: true }
-  }
-
-  componentDidCatch(error: Error, _info: ErrorInfo) {
-    console.warn('Fighter skin failed to load. Using fallback mesh.', error)
-  }
-
-  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
-    if (previous.resetKey !== this.props.resetKey && this.state.failed) {
-      this.setState({ failed: false })
-    }
-  }
-
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children
-  }
-}
-
-const Skin = ({
-  modelUrl,
-  settings,
-}: {
-  modelUrl: string
-  settings: FighterModelSettings
-}) => {
-  const { scene } = useGLTF(modelUrl)
-  const normalized = useMemo(() => {
-    const clone = scene.clone(true)
-    clone.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-      }
-    })
-
-    clone.updateMatrixWorld(true)
-    const bounds = new THREE.Box3().setFromObject(clone)
-    const size = bounds.getSize(new THREE.Vector3())
-    const center = bounds.getCenter(new THREE.Vector3())
-    const scale = (size.y > 0 ? TARGET_SKIN_HEIGHT / size.y : 1) * settings.scale
-
-    return {
-      clone,
-      offset: new THREE.Vector3(-center.x, -bounds.min.y, -center.z),
-      scale,
-    }
-  }, [scene, settings.scale])
-
-  return (
-    <group scale={normalized.scale}>
-      <group position={normalized.offset}>
-        <primitive object={normalized.clone} />
-      </group>
-    </group>
-  )
-}
-
-const FallbackSkin = ({ accent }: { accent: string }) => (
-  <group>
-    <mesh position={[0, 1.45, 0]} castShadow>
-      <boxGeometry args={[0.82, 1.5, 0.5]} />
-      <meshStandardMaterial color={accent} roughness={0.55} />
-    </mesh>
-    <mesh position={[0, 2.5, 0]} castShadow>
-      <boxGeometry args={[0.62, 0.62, 0.58]} />
-      <meshStandardMaterial color={accent} roughness={0.5} />
-    </mesh>
-    {[-0.3, 0.3].map((x) => (
-      <mesh key={x} position={[x, 0.42, 0]} castShadow>
-        <boxGeometry args={[0.27, 0.95, 0.3]} />
-        <meshStandardMaterial color="#17213b" roughness={0.7} />
-      </mesh>
-    ))}
-  </group>
-)
+import { GlbModel } from './models/GlbModel'
 
 const DebugBoxes = ({ id }: { id: PlayerId }) => {
   const fighter = useGameStore((state) => state.fighters[id])
@@ -127,9 +42,9 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
     const settings = fighter.modelSettings
 
     root.current.position.set(fighter.x, fighter.y, 0)
-    root.current.rotation.set(0, settings.rotationY + (fighter.facing === 1 ? 0 : Math.PI), 0)
+    root.current.rotation.set(0, 0, 0)
     skin.current.position.set(settings.horizontalOffset, settings.verticalOffset + idle * 0.035, 0)
-    skin.current.rotation.set(0, 0, 0)
+    skin.current.rotation.set(0, settings.rotationY + (fighter.facing === 1 ? 0 : Math.PI), 0)
     skin.current.scale.setScalar(1)
 
     if (!fighter.grounded) {
@@ -141,11 +56,12 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
       const spec = ATTACKS[fighter.attack.type]
       const progress = fighter.attack.elapsed / spec.duration
       const pulse = Math.sin(progress * Math.PI)
-      skin.current.position.x = settings.horizontalOffset + pulse * (fighter.attack.type === 'special' ? 0.64 : 0.36)
+      skin.current.position.x =
+        settings.horizontalOffset + fighter.facing * pulse * (fighter.attack.type === 'special' ? 0.64 : 0.36)
 
       if (fighter.attack.type === 'kick') {
         skin.current.rotation.z = -pulse * 0.72
-        skin.current.rotation.y = pulse * Math.PI * 1.65
+        skin.current.rotation.y += fighter.facing * pulse * Math.PI * 1.65
       }
 
       if (fighter.attack.type === 'special') {
@@ -156,12 +72,12 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
 
     if (fighter.blocking) {
       skin.current.rotation.z = -0.1
-      skin.current.position.x -= 0.12
+      skin.current.position.x -= fighter.facing * 0.12
     }
 
     if (fighter.hitStun > 0) {
       skin.current.rotation.z = 0.22
-      skin.current.position.x -= 0.15
+      skin.current.position.x -= fighter.facing * 0.15
       skin.current.scale.set(0.88, 1.08, 0.88)
     }
 
@@ -178,26 +94,33 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
     }
   })
 
-  const fighter = useGameStore((state) => state.fighters[id])
+  const modelUrl = useGameStore((state) => state.fighters[id].modelUrl)
+  const modelSettings = useGameStore((state) => state.fighters[id].modelSettings)
+  const accent = useGameStore((state) => state.fighters[id].accent)
+  const specialActive = useGameStore((state) => state.fighters[id].attack?.type === 'special')
+  const debugHitboxes = useGameStore((state) => state.debugHitboxes)
+  const setModelDiagnostic = useGameStore((state) => state.setModelDiagnostic)
+  const reportModelStatus = useCallback(
+    (diagnostic: ModelDiagnostic) => setModelDiagnostic(id, diagnostic),
+    [id, setModelDiagnostic],
+  )
 
   return (
     <group ref={root}>
       <group ref={skin}>
-        <SkinErrorBoundary
-          fallback={<FallbackSkin accent={fighter.accent} />}
-          resetKey={fighter.modelUrl}
-        >
-          <Suspense fallback={<FallbackSkin accent={fighter.accent} />}>
-            <Skin modelUrl={fighter.modelUrl} settings={fighter.modelSettings} />
-          </Suspense>
-        </SkinErrorBoundary>
+        <GlbModel
+          modelUrl={modelUrl}
+          scale={modelSettings.scale}
+          accent={accent}
+          onStatus={reportModelStatus}
+        />
       </group>
-      {fighter.attack?.type === 'special' && (
+      {specialActive && (
         <group position={[0, 1.35, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <pointLight color={fighter.accent} intensity={3.4} distance={4} />
+          <pointLight color={accent} intensity={3.4} distance={4} />
           <mesh>
             <torusGeometry args={[0.88, 0.045, 8, 30]} />
-            <meshBasicMaterial color={fighter.accent} transparent opacity={0.72} />
+            <meshBasicMaterial color={accent} transparent opacity={0.72} />
           </mesh>
           <mesh scale={1.35}>
             <torusGeometry args={[0.88, 0.025, 8, 30]} />
@@ -205,10 +128,7 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
           </mesh>
         </group>
       )}
-      <DebugBoxes id={id} />
+      {debugHitboxes && <DebugBoxes id={id} />}
     </group>
   )
 }
-
-useGLTF.preload('/models/fighter-1.glb')
-useGLTF.preload('/models/fighter-2.glb')
