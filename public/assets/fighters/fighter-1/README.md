@@ -9,7 +9,9 @@ walk.png
 jump.png
 block.png
 light-punch.png
+heavy-punch.png
 kick.png
+special.png
 hit.png
 ko.png
 victory.png
@@ -31,4 +33,4 @@ Frame counts and FPS values are configured in `src/game/spriteFighters.ts`. The 
 | ko | 5 |
 | victory | 4 |
 
-`kick.png` still needs to be added. Until it exists, kick and special animations intentionally display the generated fallback fighter.
+`kick.png` is included. Heavy punch temporarily reuses `light-punch.png`, and special temporarily reuses `kick.png`. Add `heavy-punch.png` and `special.png` when those sheets are ready. The renderer keeps these fallback links as safety nets for incomplete deployments.
