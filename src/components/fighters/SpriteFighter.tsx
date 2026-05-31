@@ -1,11 +1,13 @@
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { PlayerId, SpriteAssetDiagnostic } from '../../game/types'
 import {
   getSpriteAnimation,
+  resolveSpriteAnimations,
   type SpriteFighterConfig,
 } from '../../game/spriteFighters'
+import { SpriteAnimator } from '../../game/spriteAnimator'
 import { useGameStore } from '../../store/gameStore'
 import { useSafeTexture } from '../assets/useSafeTexture'
 
@@ -22,12 +24,16 @@ const fragmentShader = `
   uniform sampler2D uMap;
   uniform float uFrame;
   uniform float uFrameCount;
+  uniform float uTextureWidth;
   uniform float uFilterPaleBackground;
   uniform float uOpacity;
   varying vec2 vUv;
 
   void main() {
-    vec2 atlasUv = vec2((uFrame + vUv.x) / uFrameCount, vUv.y);
+    float halfTexel = 0.5 / max(1.0, uTextureWidth);
+    float frameStart = uFrame / uFrameCount;
+    float frameEnd = (uFrame + 1.0) / uFrameCount;
+    vec2 atlasUv = vec2(mix(frameStart + halfTexel, frameEnd - halfTexel, vUv.x), vUv.y);
     vec4 pixel = texture2D(uMap, atlasUv);
     float brightest = max(pixel.r, max(pixel.g, pixel.b));
     float darkest = min(pixel.r, min(pixel.g, pixel.b));
@@ -91,70 +97,114 @@ export const SpriteFighter = ({
   accent: string
   onStatus: (diagnostic: SpriteAssetDiagnostic) => void
 }) => {
-  const fighter = useGameStore((state) => state.fighters[id])
-  const animationName = getSpriteAnimation(fighter)
-  const animation = config.animations[animationName]
-  const loaded = useSafeTexture(animation.filePath)
+  const gameplayAnimation = useGameStore((state) => getSpriteAnimation(state.fighters[id]))
+  const previewAnimation = useGameStore((state) => state.spriteAnimationPreview)
+  const showFrameBounds = useGameStore((state) => state.debugSpriteBounds)
+  const showOrigin = useGameStore((state) => state.debugSpriteOrigin)
+  const desiredAnimation = previewAnimation ?? gameplayAnimation
+  const animator = useRef(new SpriteAnimator(desiredAnimation))
+  const [animationName, setAnimationName] = useState(desiredAnimation)
+  const animations = useMemo(() => resolveSpriteAnimations(config), [config])
+  const animation = animations[animationName]
+  const loaded = useSafeTexture(animation.file)
   const alternateAnimation = animation.fallbackAnimation
-    ? config.animations[animation.fallbackAnimation]
+    ? animations[animation.fallbackAnimation]
     : undefined
-  const alternateLoaded = useSafeTexture(alternateAnimation?.filePath)
-  const elapsed = useRef(0)
+  const alternateLoaded = useSafeTexture(alternateAnimation?.file)
   const frame = useRef(0)
   const transition = useRef(1)
   const visual = useRef<THREE.Group>(null)
+  const facing = useRef<THREE.Group>(null)
+  const lastReportedFrame = useRef(-1)
   const fallbackTexture = useMemo(() => createFallbackTexture(accent), [accent])
-  const playback = loaded.texture ? animation : alternateLoaded.texture && alternateAnimation ? alternateAnimation : animation
+  const renderedSheet = loaded.texture ? animation : alternateLoaded.texture && alternateAnimation ? alternateAnimation : animation
   const texture = loaded.texture ?? alternateLoaded.texture ?? fallbackTexture
   const usingGeneratedFallback = texture === fallbackTexture
   const usingAlternateSheet = !loaded.texture && Boolean(alternateLoaded.texture)
-  const frameCount = usingGeneratedFallback ? 1 : playback.frameCount
+  const renderedFrameCount = usingGeneratedFallback ? 1 : renderedSheet.frameCount
   const uniforms = useMemo(
     () => ({
       uMap: { value: texture },
       uFrame: { value: 0 },
-      uFrameCount: { value: frameCount },
+      uFrameCount: { value: renderedFrameCount },
+      uTextureWidth: { value: 1 },
       uFilterPaleBackground: { value: usingGeneratedFallback ? 0 : 1 },
       uOpacity: { value: 1 },
     }),
-    [frameCount, texture, usingGeneratedFallback],
+    [renderedFrameCount, texture, usingGeneratedFallback],
   )
-
-  useEffect(() => {
-    elapsed.current = 0
-    frame.current = 0
-    transition.current = 0
-    uniforms.uFrame.value = 0
-  }, [animationName])
 
   useEffect(() => () => fallbackTexture.dispose(), [fallbackTexture])
 
   useEffect(() => {
     const message =
       loaded.status === 'loaded'
-        ? `Loaded ${animation.filePath}`
+        ? `Loaded ${animation.file}`
         : loaded.status === 'error'
           ? usingAlternateSheet
-            ? `Missing ${animation.filePath}; using ${animation.fallbackAnimation} sheet fallback.`
-            : `Missing ${animation.filePath}; using fallback silhouette.`
-          : `Loading ${animation.filePath}`
-    onStatus({ animation: animationName, filePath: animation.filePath, status: loaded.status, message })
-  }, [animation.fallbackAnimation, animation.filePath, animationName, loaded.status, onStatus, usingAlternateSheet])
+            ? `Missing ${animation.file}; using ${animation.fallbackAnimation} sheet fallback.`
+            : `Missing ${animation.file}; using fallback silhouette.`
+          : `Loading ${animation.file}`
+    onStatus({
+      animation: animationName,
+      filePath: animation.file,
+      status: loaded.status,
+      message,
+      frameIndex: frame.current,
+      frameCount: animation.frameCount,
+      fps: animation.fps,
+      usingFallback: usingGeneratedFallback || usingAlternateSheet,
+    })
+  }, [animation.fallbackAnimation, animation.file, animation.frameCount, animation.fps, animationName, loaded.status, onStatus, usingAlternateSheet, usingGeneratedFallback])
 
   useFrame((_, delta) => {
     const state = useGameStore.getState()
+    const fighter = state.fighters[id]
     const frozen = state.phase === 'paused' || state.hitStop > 0
-    if (!frozen) {
-      elapsed.current += delta
-      transition.current = Math.min(1, transition.current + delta / 0.085)
+    const playbackDelta = delta * (state.slowMotion > 0 ? 0.34 : 1)
+    const snapshot = animator.current.update({
+      animations,
+      desiredAnimation: state.spriteAnimationPreview ?? getSpriteAnimation(fighter),
+      delta: playbackDelta,
+      frozen,
+      paused: state.spriteAnimationPaused,
+      stepRequest: state.spriteAnimationStepRequest,
+      forcePreview: state.spriteAnimationPreview !== null,
+    })
+    if (snapshot.entered) {
+      transition.current = 0
+      lastReportedFrame.current = -1
+      uniforms.uFrame.value = 0
+      setAnimationName(snapshot.animation)
+    }
+    frame.current = snapshot.frameIndex
+    if (!frozen && !state.spriteAnimationPaused) {
+      transition.current = Math.min(1, transition.current + playbackDelta / 0.085)
     }
 
     if (!usingGeneratedFallback) {
-      const nextFrame = Math.floor(elapsed.current * playback.fps)
-      frame.current = playback.loop
-        ? nextFrame % playback.frameCount
-        : Math.min(playback.frameCount - 1, nextFrame)
-      uniforms.uFrame.value = frame.current
+      uniforms.uFrame.value = Math.min(
+        renderedFrameCount - 1,
+        Math.floor((frame.current * renderedFrameCount) / animation.frameCount),
+      )
+    }
+
+    const sourceWidth = (texture.image as { width?: number } | undefined)?.width ?? 1
+    uniforms.uTextureWidth.value = sourceWidth
+    if (facing.current) facing.current.scale.x = fighter.facing
+
+    if (state.debugSprites && frame.current !== lastReportedFrame.current) {
+      lastReportedFrame.current = frame.current
+      onStatus({
+        animation: animationName,
+        filePath: animation.file,
+        status: loaded.status,
+        message: loaded.status === 'loaded' ? `Loaded ${animation.file}` : `Using safe fallback for ${animation.file}`,
+        frameIndex: frame.current,
+        frameCount: animation.frameCount,
+        fps: animation.fps,
+        usingFallback: usingGeneratedFallback || usingAlternateSheet,
+      })
     }
 
     const ease = 1 - Math.pow(1 - transition.current, 3)
@@ -167,22 +217,24 @@ export const SpriteFighter = ({
   })
 
   const source = (usingGeneratedFallback ? undefined : texture.image) as { width?: number; height?: number } | undefined
-  const frameWidth = config.frameWidth ?? (source?.width ?? 1) / playback.frameCount
+  const frameWidth = config.frameWidth ?? (source?.width ?? 1) / renderedSheet.frameCount
   const frameHeight = config.frameHeight ?? source?.height ?? 1
   const worldHeight = config.scale * (animation.scale ?? 1)
   const worldWidth = worldHeight * (frameWidth / frameHeight)
+  const originX = animation.originX ?? config.originX
+  const originY = animation.originY ?? config.originY
 
   return (
     <group
       position={[
-        config.horizontalOffset + (animation.horizontalOffset ?? 0),
-        config.verticalOffset + (animation.verticalOffset ?? 0),
+        config.horizontalOffset + (animation.offsetX ?? 0),
+        config.verticalOffset + (animation.offsetY ?? 0),
         0,
       ]}
-      scale={[fighter.facing, 1, 1]}
+      ref={facing}
     >
       <group ref={visual}>
-        <mesh position={[0, worldHeight / 2, 0.18]} renderOrder={15}>
+        <mesh position={[(0.5 - originX) * worldWidth, (0.5 - originY) * worldHeight, 0.18]} renderOrder={15}>
           <planeGeometry args={[worldWidth, worldHeight]} />
           <shaderMaterial
             depthWrite={false}
@@ -194,6 +246,24 @@ export const SpriteFighter = ({
             vertexShader={vertexShader}
           />
         </mesh>
+        {showFrameBounds && (
+          <mesh position={[(0.5 - originX) * worldWidth, (0.5 - originY) * worldHeight, 0.2]}>
+            <planeGeometry args={[worldWidth, worldHeight]} />
+            <meshBasicMaterial color="#ffe05c" transparent opacity={0.8} wireframe />
+          </mesh>
+        )}
+        {showOrigin && (
+          <group position={[0, 0, 0.22]}>
+            <mesh>
+              <circleGeometry args={[0.07, 18]} />
+              <meshBasicMaterial color="#ff4f9a" />
+            </mesh>
+            <mesh position={[0, 0, -0.01]}>
+              <planeGeometry args={[worldWidth * 1.35, 0.018]} />
+              <meshBasicMaterial color="#60e8ff" />
+            </mesh>
+          </group>
+        )}
       </group>
     </group>
   )
