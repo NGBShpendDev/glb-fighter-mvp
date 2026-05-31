@@ -28,6 +28,7 @@ try {
     for (let index = 0; index < count; index += 1) get().update(delta)
   }
   const ready = () => {
+    get().setP2ControlMode('player')
     get().startMatch()
     tick(44)
   }
@@ -63,6 +64,17 @@ try {
   assert(get().vfx.some((effect) => effect.kind === 'dustPuff'), 'dash spawns a dust puff VFX event')
 
   ready()
+  useGameStore.setState((state) => ({
+    fighters: {
+      p1: { ...state.fighters.p1, x: -0.18, vx: 10 },
+      p2: { ...state.fighters.p2, x: 0.18, vx: -10 },
+    },
+  }))
+  tick()
+  assert(get().fighters.p1.x < get().fighters.p2.x, 'close-range movement keeps fighters from passing through each other')
+  assert(get().fighters.p1.facing === 1 && get().fighters.p2.facing === -1, 'separated fighters face each other')
+
+  ready()
   tap('KeyW')
   let landedWithDust = false
   for (let index = 0; index < 30; index += 1) {
@@ -80,6 +92,7 @@ try {
   for (let index = 0; index < 8 && get().fighters.p2.health === 100; index += 1) tick()
   const healthAfterLight = get().fighters.p2.health
   assert(healthAfterLight < 100, 'light attack connects inside its active hitbox')
+  assert(get().hitStop > 0, 'landed attack applies brief hit stop')
   assert(get().vfx.some((effect) => effect.kind === 'hitSpark'), 'landed attack spawns a hit spark VFX event')
   tick(12)
   assert(get().fighters.p2.health === healthAfterLight, 'one attack cannot damage repeatedly across active frames')
@@ -93,6 +106,10 @@ try {
   get().setKey('ArrowDown', false)
   assert(get().fighters.p2.health >= 98 && get().fighters.p2.blockStun > 0, 'blocking reduces damage and applies block stun')
   assert(get().vfx.some((effect) => effect.kind === 'blockSpark'), 'blocked attack spawns a block spark VFX event')
+
+  ready()
+  tap('KeyG')
+  assert(get().vfx.some((effect) => effect.kind === 'energySlash'), 'heavy attack spawns a directional energy slash VFX event')
 
   ready()
   useGameStore.setState((state) => ({
@@ -136,6 +153,24 @@ try {
   assert(get().phase === 'ko' && get().winner === null, 'equal-health timeout ends as a draw')
   get().returnToTitle()
   assert(get().phase === 'title', 'return to title resets the match flow')
+
+  for (const mode of ['ai-easy', 'ai-medium', 'ai-hard']) {
+    get().setP2ControlMode(mode)
+    get().startMatch()
+    tick(44)
+    const startingX = get().fighters.p2.x
+    tick(8)
+    assert(get().p2ControlMode === mode, `${mode} can be selected for Player 2`)
+    assert(get().fighters.p2.x < startingX, `${mode} approaches Player 1 through normal movement input`)
+    assert(get().fighters.p1.health === 100, `${mode} does not bypass hitboxes or directly change health`)
+  }
+
+  ready()
+  const p2StartingX = get().fighters.p2.x
+  get().setKey('ArrowLeft', true)
+  tick(4)
+  get().setKey('ArrowLeft', false)
+  assert(get().fighters.p2.x < p2StartingX, 'Player Controlled mode keeps Player 2 keyboard movement working')
 } finally {
   await rm(directory, { recursive: true, force: true })
 }
