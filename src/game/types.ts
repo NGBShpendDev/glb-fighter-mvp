@@ -1,5 +1,5 @@
 export type PlayerId = 'p1' | 'p2'
-export type MatchPhase = 'title' | 'fight' | 'ko'
+export type MatchPhase = 'title' | 'fight' | 'paused' | 'ko'
 export type AttackType = 'light' | 'heavy' | 'kick' | 'special'
 
 export type AttackState = {
@@ -13,6 +13,18 @@ export type FighterModelSettings = {
   rotationY: number
   verticalOffset: number
   horizontalOffset: number
+}
+
+export type ModelLoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
+
+export type ModelDiagnostic = {
+  modelUrl: string
+  status: ModelLoadStatus
+  message: string
+  meshes?: number
+  nodes?: number
+  normalizedScale?: number
+  sourceSize?: { x: number; y: number; z: number }
 }
 
 export type FighterStats = {
@@ -75,4 +87,19 @@ export type HitSpark = {
   color: string
   blocked: boolean
   kind: AttackType
+  direction: 1 | -1
+}
+
+export type VfxKind = 'hitSpark' | 'blockSpark' | 'dustPuff' | 'energySlash'
+
+export type VfxEvent = {
+  id: number
+  kind: VfxKind
+  x: number
+  y: number
+  z: number
+  age: number
+  life: number
+  direction: 1 | -1
+  scale: number
 }
