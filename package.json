@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test:game": "node scripts/test-game-state.mjs",
     "test:models": "node scripts/test-models.mjs",
+    "test:sprites": "node scripts/test-sprites.mjs",
     "preview": "vite preview",
     "generate:models": "node scripts/generate-placeholder-models.mjs"
   },

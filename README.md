@@ -2,7 +2,7 @@
 
 A browser-based 2.5D local multiplayer fighting game MVP built with Vite, React, TypeScript, Three.js, React Three Fiber, Drei, and Zustand.
 
-The included fighter GLBs are intentionally static meshes. The game controller owns movement, combat, hitboxes, and procedural animation, so uploaded non-rigged GLBs work as visual skins without skeletal animation, animation mixers, or rig assumptions.
+The game supports hybrid fighter visuals. Static GLBs remain useful for identity, preview, tuning, and uploads. Matches can render those GLBs or switch to sprite-sheet fighters without changing movement, combat, or hitboxes.
 
 ## Features
 
@@ -19,6 +19,7 @@ The included fighter GLBs are intentionally static meshes. The game controller o
 - Drop-in transparent PNG overlays for impact, block, dust, special, and KO effects
 - Uploaded `.glb` fighter skins with automatic height normalization and fallback meshes
 - Local character-select screen with rotating GLB previews and per-fighter tuning
+- Hybrid GLB or sprite-sheet match rendering with generated sprite fallbacks
 - Vercel Blob character uploads with progress, validation, and browser-local metadata
 
 ## Local Development
@@ -37,12 +38,15 @@ Verify the production build before deploying:
 ```bash
 npm run test:models
 npm run test:game
+npm run test:sprites
 npm run build
 ```
 
 `npm run test:models` verifies that the submitted fighter GLBs exist, use GLB version 2, contain scenes and meshes, and match their declared binary size.
 
 `npm run test:game` runs a fast state-level combat smoke test for arena bounds, jumping, dashing, hits, blocking, KO, rematch, pause, and draw handling.
+
+`npm run test:sprites` verifies the sprite folder structure, required animation configs, Vite asset paths, and visual-state animation mapping.
 
 ## Controls
 
@@ -70,6 +74,9 @@ src/
     StageManager.tsx          # Config-driven stage assets and fallback arena
     VFXManager.tsx            # Capped sprite-sheet event renderer
     FighterController.tsx     # Reusable visual fighter shell
+    fighters/
+      FighterRenderer.tsx     # GLB or sprite render-mode switch
+      SpriteFighter.tsx       # One-row sprite-sheet playback and fallback
     GameScene.tsx             # Match loop, camera, controls, sparks
     GameUI.tsx                # HUD, title screen, KO flow
     UiAtlasSprite.tsx         # Optional generated arcade UI atlas crops
@@ -84,6 +91,7 @@ src/
     constants.ts              # Move tuning and controls
     hitboxes.ts               # Collision volumes and overlap checks
     models.ts                 # Bundled model paths and tuning defaults
+    spriteFighters.ts         # Sprite paths, frame counts, FPS, and state mapping
     stages.ts                 # Stage catalog, layers, lighting, and music paths
     types.ts                  # Combat types
     vfx.ts                    # Drop-in transparent PNG effect paths
@@ -157,6 +165,52 @@ For the simplest local workflow:
 4. Select the new model, tune its sliders, and start a match.
 
 Static, non-rigged GLBs are expected. The controller adds procedural motion around the model without requiring skeleton clips. If a model URL is missing or invalid, the game renders a blocky fallback fighter so the round remains playable.
+
+## Adding Sprite Fighters
+
+Use the `SPRITE MODE` button on the title screen to render flat 2.5D fighters during a match. `GLB MODE` keeps the original 3D match renderer available. The character-select preview and debug model viewer continue to use GLBs in both modes.
+
+Drop one-row transparent PNG sheets into:
+
+```text
+public/assets/fighters/fighter-1/
+public/assets/fighters/fighter-2/
+```
+
+Use these exact filenames:
+
+```text
+idle.png
+walk.png
+jump.png
+block.png
+light-punch.png
+kick.png
+hit.png
+ko.png
+victory.png
+```
+
+Each sheet contains one horizontal row of equal-sized frames. Configure the animation timing in `src/game/spriteFighters.ts`:
+
+```ts
+{
+  scale: 2.8,
+  horizontalOffset: 0,
+  verticalOffset: 0,
+  animations: {
+    idle: { filePath: '/assets/fighters/fighter-1/idle.png', frameCount: 6, fps: 8, loop: true }
+  }
+}
+```
+
+By default, frame dimensions are inferred per animation: frame width is the full sheet width divided by `frameCount`, and frame height is the image height. Add optional `frameWidth` and `frameHeight` values only when a future sheet needs an explicit override. Missing or invalid sprite sheets automatically use a generated fallback silhouette, so sprite mode stays playable while artwork is in progress.
+
+Fighter 1 is the included `SAFARI STRIKER` sprite skin. Its submitted files live in `public/assets/fighters/fighter-1/`, with `light-punch.png` using a hyphenated filename and `anchor.png` acting as a static alignment reference. The character-select cards include a `SPRITE SHEET FIGHTER` selector, so Safari Striker can be assigned to Player 1 or Player 2 independently of the GLB preview skin.
+
+The current Safari Striker submission is still missing `kick.png`. Kick and special moves deliberately render the fallback silhouette until the five-frame kick sheet is added.
+
+The debug panel shown during a match reports the active render mode, fighter state, selected animation, and configured frame count.
 
 ## Adding Stage Art
 
@@ -243,6 +297,8 @@ The generated interface sheet lives at `public/assets/ui/arcade-ui-atlas.png`. T
 - Select each bundled GLB, adjust tuning sliders, and use `RESET TUNING`.
 - Open `DEBUG MODEL VIEWER`, preview both submitted GLBs, and confirm each reaches `LOADED`.
 - Temporarily add a bad model path while developing to confirm the fallback mesh appears.
+- Start a round in `SPRITE MODE` before adding artwork and confirm both generated fallback fighters appear.
+- Add one sprite sheet, update its frame count, and confirm its matching state animates while other states keep using fallbacks.
 
 ## Later Milestone
 
