@@ -83,6 +83,7 @@ src/
     ai.ts                     # Player 2 AI difficulties and decisions
     constants.ts              # Controls and move tuning
     hitboxes.ts               # Invisible collision boxes
+    spriteAnimator.ts         # Frame playback, priorities, events, cancellation
     spriteFighters.ts         # Fighter sheet paths, frame counts, FPS, tuning
     stages.ts                 # Stage asset catalog
     types.ts                  # Gameplay contracts
@@ -105,20 +106,50 @@ Create a folder under `public/assets/fighters/`:
 ```text
 public/assets/fighters/my-fighter/
   anchor.png
+  portrait.png
   idle.png
   walk.png
+  dash.png
   jump.png
   block.png
   light-punch.png
+  heavy-punch.png
   kick.png
+  special.png
   hit.png
+  knockdown.png
   ko.png
   victory.png
 ```
 
-`anchor.png` is the portrait shown on the character select screen. Animation PNGs should contain one horizontal row of equal-width frames.
+`anchor.png` is the full-body alignment reference. `portrait.png` is the preferred character-select image; when it is absent, the UI safely uses `anchor.png`. Animation PNGs should use transparent backgrounds and contain one horizontal row of equal-width frames.
 
-The engine also supports optional `heavy-punch.png` and `special.png` sheets. Until those exist, configure `fallbackAnimation` to reuse a nearby move.
+For new art, use `512x512` pixels per frame. An 8-frame sheet should be exported as a `4096x512` PNG. Keep the fighter's feet on the same baseline in every grounded frame so animation changes do not create visible jitter.
+
+Required animations:
+
+| Animation | Recommended frames |
+| --- | ---: |
+| `idle` | 8 |
+| `walk` | 8 |
+| `jump` | 6 |
+| `block` | 4 |
+| `lightPunch` | 6 |
+| `kick` | 7 |
+| `hit` | 4 |
+| `ko` | 6 |
+| `victory` | 6 |
+
+Recommended upgraded animations:
+
+| Animation | Recommended frames | Safe visual fallback |
+| --- | ---: | --- |
+| `dash` | 5 | `walk` |
+| `heavyPunch` | 7 | `lightPunch` |
+| `special` | 8 | `kick` |
+| `knockdown` | 6 | `ko` |
+
+Missing optional animations are resolved automatically. Gameplay movement, attack timing, damage, and invisible hitboxes remain separate from the visible fallback sheet.
 
 Add the fighter ID to `SpriteFighterId` in `src/game/types.ts`, then add its config in `src/game/spriteFighters.ts`:
 
@@ -129,19 +160,32 @@ Add the fighter ID to `SpriteFighterId` in `src/game/types.ts`, then add its con
   scale: 3.05,
   horizontalOffset: 0,
   verticalOffset: 0,
+  originX: 0.5,
+  originY: 0,
   anchorPath: '/assets/fighters/my-fighter/anchor.png',
   animations: {
     idle: {
-      filePath: '/assets/fighters/my-fighter/idle.png',
+      file: '/assets/fighters/my-fighter/idle.png',
       frameCount: 4,
       fps: 7,
       loop: true,
+      holdLastFrame: false,
+      restartOnEnter: true,
+      priority: 10,
+      cancelWindows: [],
+      frameEvents: [],
     },
   },
 }
 ```
 
-Frame width is inferred from image width divided by `frameCount`; frame height is read from the image. Use per-animation `scale`, `horizontalOffset`, and `verticalOffset` only when a sheet needs small visual alignment corrections.
+Frame width is inferred from image width divided by `frameCount`; frame height is read from the image. `originX: 0.5` and `originY: 0` keep the sprite pivot centered on its feet. Use per-animation `scale`, `offsetX`, `offsetY`, `originX`, and `originY` only when a sheet needs small visual alignment corrections.
+
+Attack animations can also define `attackPhases`, `hitFrames`, and `soundEventFrame`. The engine builds frame events from this data, and invisible attack hitboxes are only active on configured hit frames. `cancelWindows` list the future animations that may interrupt a move during specific recovery frames.
+
+Sprite sheets are preloaded when a fighter is selected. During a match, press `V` to open the lower-left debug panel. It reports the current state, animation, frame, FPS, velocity, facing direction, ground state, and combat flags. The same panel can pause animation playback, step forward by one frame, preview each animation, show sheet bounds, and draw the fighter baseline.
+
+Read the full production checklist in [`docs/SPRITE_PRODUCTION_SPEC.md`](docs/SPRITE_PRODUCTION_SPEC.md). A copyable config with the complete upgraded animation set lives in [`docs/examples/upgraded-sprite-fighter.config.ts`](docs/examples/upgraded-sprite-fighter.config.ts).
 
 ## Existing Fighters
 
@@ -196,3 +240,4 @@ The game deploys as a static Vite app with no server routes or cloud storage req
 - Select `PLAYER CONTROLLED`; confirm Player 2 arrow and `J K L I /` controls.
 - Pause with `Esc`, restart the round, return to character select, and rematch after KO.
 - Toggle hitboxes with `B` and confirm sprite animation does not affect collision boxes.
+- Toggle the sprite diagnostics with `V` and confirm frame, velocity, facing, and state values respond during a match.
