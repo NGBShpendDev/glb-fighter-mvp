@@ -2,26 +2,29 @@
 
 A browser-based 2.5D local multiplayer fighting game MVP built with Vite, React, TypeScript, Three.js, React Three Fiber, Drei, and Zustand.
 
-The included fighter GLBs are intentionally static meshes. The game controller owns movement, combat, hitboxes, and procedural animation, so uploaded non-rigged GLBs work as visual skins without skeletal animation.
+The included fighter GLBs are intentionally static meshes. The game controller owns movement, combat, hitboxes, and procedural animation, so uploaded non-rigged GLBs work as visual skins without skeletal animation, animation mixers, or rig assumptions.
 
 ## Features
 
 - 2.5D side-view arena with fighters locked to the X/Y plane
-- Camera tracking, shadows, lighting, screen shake, sparks, and impact flashes
+- Expanded street-market arena with crowd silhouettes, stalls, neon lighting, and street reflections
+- Camera tracking, shadows, hit-stop, stronger screen shake, layered sparks, rings, debris, and impact flashes
 - Two keyboard-controlled fighters with walk, jump, dash, block, and four attacks
 - Custom invisible hitbox and hurtbox collision logic with a `B` debug toggle
 - Damage, knockback, hit stun, block stun, cooldowns, round timer, KO, and rematch
-- Procedural idle, attack lunge, kick spin, recoil, KO fall, and victory motion
-- Static placeholder `.glb` skins generated locally
-- Local-only GLB upload preview with a future Vercel Blob integration point
+- Meter-backed special moves, fighter stats, round callouts, perfect wins, and victory presentation
+- Procedural idle, attack lunge, kick spin, jump stretch, recoil squash, KO fall, and victory motion
+- Generated Web Audio hit effects and a lightweight synth backing loop with a sound toggle
+- Uploaded `.glb` fighter skins with automatic height normalization and fallback meshes
+- Local character-select screen with rotating GLB previews and per-fighter tuning
+- Vercel Blob character uploads with progress, validation, and browser-local metadata
 
 ## Local Development
 
-Install dependencies and generate the included placeholder fighters:
+Install dependencies and start the game:
 
 ```bash
 npm install
-npm run generate:models
 npm run dev
 ```
 
@@ -50,13 +53,16 @@ npm run build
 ## Project Structure
 
 ```text
+api/
+  upload.ts                      # Vercel Blob client-upload token route
 src/
   components/
     Arena.tsx                 # Urban Three.js stage
     FighterController.tsx     # Reusable visual fighter shell
     GameScene.tsx             # Match loop, camera, controls, sparks
     GameUI.tsx                # HUD, title screen, KO flow
-    ModelUploadPreview.tsx    # Local GLB preview stub
+    CharacterSelect.tsx       # Local GLB selection and preview controls
+    UploadCharacterPage.tsx   # Vercel Blob upload screen
   game/
     constants.ts              # Move tuning and controls
     hitboxes.ts               # Collision volumes and overlap checks
@@ -69,22 +75,41 @@ src/
 
 1. Push the project to a Git provider.
 2. Import the repository in Vercel.
-3. Use the default Vite settings:
+3. In the Vercel project, create a public Blob store and connect it to the project.
+4. Use the default Vite settings:
 
 ```text
 Build command: npm run build
 Output directory: dist
 ```
 
-The project is a static Vite app and does not need a server for the MVP.
+The fighting game is a static Vite app. Uploading characters adds one small Vercel Function for issuing Blob client-upload tokens.
 
-## Planned Vercel Blob Upgrade
+The upload screen uses the Vercel Function at `api/upload.ts`. Vercel automatically provides `BLOB_READ_WRITE_TOKEN` after a Blob store is connected. Uploaded GLBs are public skins, limited to 50 MB, and their character metadata is saved in browser local storage.
 
-`ModelUploadPreview` currently creates a browser-local object URL. To persist skins:
+The MVP upload route is intentionally unauthenticated. Add sign-in and authorization checks in `api/upload.ts` before exposing uploads to untrusted public traffic.
 
-1. Install `@vercel/blob`.
-2. Add a server upload endpoint or a Vercel client-upload flow.
-3. Store the returned Blob URL in the fighter profile.
-4. Pass that URL into `FighterController` as the visual skin.
+For local Blob upload testing, pull the linked environment variables and use Vercel's local runtime:
 
-Keep validation in the upload path: accept `.glb`, apply a reasonable file-size limit, and treat the uploaded model as untrusted content.
+```bash
+npx vercel env pull .env.local
+npx vercel dev
+```
+
+Plain `npm run dev` still runs the playable game and bundled character select, but it does not emulate the `/api/upload` Vercel Function.
+
+## Fighter Model Settings
+
+The character-select screen offers a small bundled list that includes `public/models/fighter-1.glb` and `public/models/fighter-2.glb`. Selected skins are loaded through Drei's `useGLTF`, automatically normalized to a similar height, and replaced with a simple fallback mesh if loading fails.
+
+Per-fighter visual tuning is stored locally in the Zustand game state:
+
+```ts
+{ scale: 1, rotationY: Math.PI / 2, verticalOffset: 0, horizontalOffset: 0 }
+```
+
+These values only adjust the visible skin. Movement, hitboxes, and hurtboxes remain locked to the 2.5D fighting plane.
+
+## Later Milestone
+
+Mobile and touch controls are intentionally deferred until the desktop fighting loop is tuned.
