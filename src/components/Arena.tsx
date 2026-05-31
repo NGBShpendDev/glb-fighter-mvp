@@ -1,5 +1,7 @@
-import { Float, Text } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import type { ReactNode } from 'react'
+import { useRef } from 'react'
+import * as THREE from 'three'
 
 const Building = ({
   x,
@@ -54,7 +56,24 @@ const Lamp = ({ x }: { x: number }) => (
   </group>
 )
 
-const MarketStall = ({ x, color, sign }: { x: number; color: string; sign: string }) => (
+const NeonPanel = ({
+  position,
+  color,
+  width,
+  height,
+}: {
+  position: [number, number, number]
+  color: string
+  width: number
+  height: number
+}) => (
+  <mesh position={position}>
+    <planeGeometry args={[width, height]} />
+    <meshBasicMaterial color={color} />
+  </mesh>
+)
+
+const MarketStall = ({ x, color }: { x: number; color: string }) => (
   <group position={[x, 0.1, -2.15]}>
     <mesh position={[0, 0.86, 0]} receiveShadow castShadow>
       <boxGeometry args={[2.45, 1.7, 0.9]} />
@@ -64,13 +83,7 @@ const MarketStall = ({ x, color, sign }: { x: number; color: string; sign: strin
       <boxGeometry args={[2.7, 0.16, 1.15]} />
       <meshStandardMaterial color={color} roughness={0.68} />
     </mesh>
-    <mesh position={[0, 1.22, 0.48]}>
-      <planeGeometry args={[1.82, 0.46]} />
-      <meshBasicMaterial color={color} />
-    </mesh>
-    <Text position={[0, 1.22, 0.5]} fontSize={0.22} color="#fff4cf">
-      {sign}
-    </Text>
+    <NeonPanel position={[0, 1.22, 0.48]} width={1.82} height={0.46} color={color} />
   </group>
 )
 
@@ -95,6 +108,27 @@ const Crowd = () => (
   </group>
 )
 
+const FloatingMarquee = () => {
+  const sign = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    if (sign.current) sign.current.position.y = 5.7 + Math.sin(clock.elapsedTime * 2) * 0.08
+  })
+  return (
+    <group ref={sign} position={[0, 5.7, -2.5]}>
+      <mesh>
+        <boxGeometry args={[4.4, 0.72, 0.12]} />
+        <meshBasicMaterial color="#fbd850" />
+      </mesh>
+      {[-1.42, -0.47, 0.47, 1.42].map((x) => (
+        <mesh key={x} position={[x, 0, 0.07]}>
+          <planeGeometry args={[0.62, 0.17]} />
+          <meshBasicMaterial color="#332342" />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 export const Arena = () => (
   <>
     <color attach="background" args={['#080a15']} />
@@ -118,15 +152,7 @@ export const Arena = () => (
         <planeGeometry args={[3.6, 1]} />
         <meshBasicMaterial color="#d21f55" />
       </mesh>
-      <Text
-        position={[0, 0.7, 0.75]}
-        fontSize={0.54}
-        color="#fff2ba"
-        anchorX="center"
-        anchorY="middle"
-      >
-        FIGHT NIGHT
-      </Text>
+      <NeonPanel position={[0, 0.7, 0.75]} width={2.9} height={0.22} color="#fff2ba" />
     </Building>
     <Building x={4.8} y={3.5} width={6.4} height={7} color="#111a2c" />
     <Building x={10.5} y={2.8} width={4.5} height={5.6} color="#1b1727" />
@@ -157,21 +183,13 @@ export const Arena = () => (
       <boxGeometry args={[18, 0.85, 0.35]} />
       <meshStandardMaterial color="#353647" roughness={0.92} />
     </mesh>
-    <Text position={[-5.2, 1.25, -1.9]} fontSize={0.58} color="#ff4f81" rotation={[0, 0, -0.08]}>
-      NO MERCY
-    </Text>
-    <Text position={[2.2, 1.23, -1.89]} fontSize={0.5} color="#52e5ff" rotation={[0, 0, 0.04]}>
-      APE DISTRICT
-    </Text>
+    <NeonPanel position={[-4.9, 1.25, -1.89]} width={2.1} height={0.16} color="#ff4f81" />
+    <NeonPanel position={[3.4, 1.23, -1.89]} width={2.55} height={0.14} color="#52e5ff" />
     <Lamp x={-6.4} />
     <Lamp x={6.4} />
     <Crowd />
-    <MarketStall x={-5.1} color="#d52c5c" sign="RAMEN // 24H" />
-    <MarketStall x={5} color="#168eb5" sign="ARCADE // OPEN" />
-    <Float speed={2} rotationIntensity={0.08} floatIntensity={0.25}>
-      <Text position={[0, 5.7, -2.5]} fontSize={0.82} color="#fbd850">
-        NIGHT MARKET // 98
-      </Text>
-    </Float>
+    <MarketStall x={-5.1} color="#d52c5c" />
+    <MarketStall x={5} color="#168eb5" />
+    <FloatingMarquee />
   </>
 )

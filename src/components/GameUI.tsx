@@ -1,21 +1,18 @@
-import { useState } from 'react'
+import { P2_CONTROL_OPTIONS } from '../game/ai'
 import { STAGE_OPTIONS } from '../game/stages'
 import { getFighterVisualState, getSpriteAnimation, SPRITE_FIGHTERS } from '../game/spriteFighters'
-import type { FighterRenderMode, PlayerId } from '../game/types'
+import type { PlayerId } from '../game/types'
 import { useGameStore } from '../store/gameStore'
 import { CharacterSelect } from './CharacterSelect'
 import { AudioController } from './AudioController'
-import { DebugModelViewer } from './DebugModelViewer'
 import { UiAtlasSprite } from './UiAtlasSprite'
-import { UploadCharacterPage } from './UploadCharacterPage'
 
 const HealthBar = ({ player }: { player: 'p1' | 'p2' }) => {
   const name = useGameStore((state) => state.fighters[player].name)
   const health = useGameStore((state) => state.fighters[player].health)
   const meter = useGameStore((state) => state.fighters[player].meter)
   const specialMove = useGameStore((state) => state.fighters[player].specialMove)
-  const modelDiagnostic = useGameStore((state) => state.modelDiagnostics[player])
-  const renderMode = useGameStore((state) => state.fighterRenderMode)
+  const spriteDiagnostic = useGameStore((state) => state.spriteDiagnostics[player])
   const status = useGameStore((state) => {
     const fighter = state.fighters[player]
     return fighter.blocking ? 'GUARD' : fighter.hitStun > 0 ? 'STUN' : fighter.cooldown > 0 ? 'RECOVER' : 'READY'
@@ -43,10 +40,8 @@ const HealthBar = ({ player }: { player: 'p1' | 'p2' }) => {
         <div className="meter-fill" style={{ width: `${meter}%` }} />
         <b>{specialMove}</b>
       </div>
-      <div className={`fighter-model-status fighter-model-status--${modelDiagnostic.status}`}>
-        {renderMode === 'sprite'
-          ? 'SPRITE MODE'
-          : `MODEL ${modelDiagnostic.status.toUpperCase()}${modelDiagnostic.status === 'error' ? ` // ${modelDiagnostic.message}` : ''}`}
+      <div className={`fighter-sprite-status fighter-sprite-status--${spriteDiagnostic.status}`}>
+        SPRITE {spriteDiagnostic.status === 'error' ? `FALLBACK // ${spriteDiagnostic.animation}` : spriteDiagnostic.status.toUpperCase()}
       </div>
     </div>
   )
@@ -102,39 +97,9 @@ const StageSelect = () => {
   )
 }
 
-const RenderModeSelect = () => {
-  const fighterRenderMode = useGameStore((state) => state.fighterRenderMode)
-  const setFighterRenderMode = useGameStore((state) => state.setFighterRenderMode)
-  const options: Array<{ mode: FighterRenderMode; title: string; description: string }> = [
-    { mode: 'glb', title: 'GLB MODE', description: '3D skins with procedural poses' },
-    { mode: 'sprite', title: 'SPRITE MODE', description: '2.5D sheets with safe fallbacks' },
-  ]
-
-  return (
-    <section className="render-mode-select">
-      <div>
-        <span className="eyebrow">FIGHTER RENDERER</span>
-        <h3>Choose the match visuals.</h3>
-      </div>
-      <div className="render-mode-select__grid">
-        {options.map((option) => (
-          <button
-            className={`render-mode-choice ${fighterRenderMode === option.mode ? 'render-mode-choice--active' : ''}`}
-            key={option.mode}
-            type="button"
-            onClick={() => setFighterRenderMode(option.mode)}
-          >
-            <strong>{option.title}</strong>
-            <small>{option.description}</small>
-          </button>
-        ))}
-      </div>
-    </section>
-  )
-}
-
 const FighterVisualDebug = ({ id }: { id: PlayerId }) => {
   const fighter = useGameStore((state) => state.fighters[id])
+  const spriteDiagnostic = useGameStore((state) => state.spriteDiagnostics[id])
   const animationName = getSpriteAnimation(fighter)
   const animation = SPRITE_FIGHTERS[fighter.spriteFighterId].animations[animationName]
 
@@ -143,26 +108,30 @@ const FighterVisualDebug = ({ id }: { id: PlayerId }) => {
       <b>{id.toUpperCase()}</b>
       <span>{getFighterVisualState(fighter)}</span>
       <span>{animationName} // {animation.frameCount} frames</span>
+      {spriteDiagnostic.status === 'error' && <em>FALLBACK // missing {spriteDiagnostic.animation}.png</em>}
     </div>
   )
 }
 
 const FighterDebugOverlay = () => {
   const phase = useGameStore((state) => state.phase)
-  const fighterRenderMode = useGameStore((state) => state.fighterRenderMode)
+  const p2ControlMode = useGameStore((state) => state.p2ControlMode)
+  const p2ControlLabel = P2_CONTROL_OPTIONS.find((option) => option.mode === p2ControlMode)?.label ?? p2ControlMode
   if (phase !== 'fight' && phase !== 'paused') return null
 
   return (
     <aside className="fighter-visual-debug">
-      <strong>RENDER MODE // {fighterRenderMode.toUpperCase()}</strong>
+      <strong>SPRITE RENDERER // P2 {p2ControlLabel}</strong>
       <FighterVisualDebug id="p1" />
       <FighterVisualDebug id="p2" />
     </aside>
   )
 }
 
-const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: () => void }) => {
+const TitleScreen = () => {
   const startMatch = useGameStore((state) => state.startMatch)
+  const p2ControlMode = useGameStore((state) => state.p2ControlMode)
+  const p2ControlLabel = P2_CONTROL_OPTIONS.find((option) => option.mode === p2ControlMode)?.label ?? p2ControlMode
   return (
     <div className="overlay overlay--title">
       <div className="title-card">
@@ -171,16 +140,10 @@ const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: (
           APE
           <strong>FIGHTER</strong>
         </h1>
-        <p className="title-card__tagline">STATIC SKINS. HEAVY HITS. ONE ROUND.</p>
+        <p className="title-card__tagline">SPRITE FIGHTERS. HEAVY HITS. ONE ROUND.</p>
         <div className="title-card__actions">
           <button className="primary-button" onClick={startMatch}>
             ENTER THE ARENA
-          </button>
-          <button className="secondary-button" type="button" onClick={onUpload}>
-            UPLOAD CHARACTER
-          </button>
-          <button className="secondary-button" type="button" onClick={onViewer}>
-            DEBUG MODEL VIEWER
           </button>
         </div>
         <p className="title-card__space">PRESS SPACE TO START</p>
@@ -202,7 +165,7 @@ const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: (
               ]}
             />
             <ControlColumn
-              side="PLAYER 2"
+              side={`PLAYER 2 // ${p2ControlLabel}`}
               rows={[
                 ['← / →', 'WALK'],
                 ['↑ / ↓', 'JUMP / BLOCK'],
@@ -213,7 +176,6 @@ const TitleScreen = ({ onUpload, onViewer }: { onUpload: () => void; onViewer: (
           </div>
         </div>
         <StageSelect />
-        <RenderModeSelect />
         <CharacterSelect />
       </div>
     </div>
@@ -275,7 +237,6 @@ const PauseScreen = () => {
 }
 
 export const GameUI = () => {
-  const [screen, setScreen] = useState<'game' | 'upload' | 'viewer'>('game')
   const phase = useGameStore((state) => state.phase)
   const timer = useGameStore((state) => Math.ceil(state.timer))
   const impactFlash = useGameStore((state) => state.shake > 0.25)
@@ -317,11 +278,7 @@ export const GameUI = () => {
           <span>{roundCallout}</span>
         </div>
       )}
-      {phase === 'title' && screen === 'game' && (
-        <TitleScreen onUpload={() => setScreen('upload')} onViewer={() => setScreen('viewer')} />
-      )}
-      {phase === 'title' && screen === 'upload' && <UploadCharacterPage onClose={() => setScreen('game')} />}
-      {phase === 'title' && screen === 'viewer' && <DebugModelViewer onClose={() => setScreen('game')} />}
+      {phase === 'title' && <TitleScreen />}
       {phase === 'ko' && <KoScreen />}
       {phase === 'paused' && <PauseScreen />}
     </>

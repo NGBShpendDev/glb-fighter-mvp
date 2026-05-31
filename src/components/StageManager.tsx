@@ -23,6 +23,69 @@ const TexturedPlane = ({
   </mesh>
 )
 
+const overlayVertexShader = `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const overlayFragmentShader = `
+  uniform sampler2D uMap;
+  uniform float uOpacity;
+  varying vec2 vUv;
+
+  void main() {
+    vec4 pixel = texture2D(uMap, vUv);
+    float brightest = max(pixel.r, max(pixel.g, pixel.b));
+    float darkest = min(pixel.r, min(pixel.g, pixel.b));
+    float saturation = brightest - darkest;
+    float paleNeutral = smoothstep(0.7, 0.96, brightest) * (1.0 - smoothstep(0.035, 0.16, saturation));
+    float alpha = pixel.a * (1.0 - paleNeutral) * uOpacity;
+
+    if (alpha < 0.025) discard;
+    gl_FragColor = vec4(pixel.rgb, alpha);
+  }
+`
+
+const FilteredOverlayPlane = ({
+  texture,
+  width,
+  height,
+  opacity,
+}: {
+  texture: THREE.Texture
+  width: number
+  height: number
+  opacity: number
+}) => {
+  const uniforms = useMemo(
+    () => ({
+      uMap: { value: texture },
+      uOpacity: { value: opacity },
+    }),
+    [opacity, texture],
+  )
+
+  return (
+    <mesh renderOrder={22}>
+      <planeGeometry args={[width, height]} />
+      <shaderMaterial
+        depthTest={false}
+        depthWrite={false}
+        fragmentShader={overlayFragmentShader}
+        side={THREE.DoubleSide}
+        toneMapped={false}
+        transparent
+        uniforms={uniforms}
+        vertexShader={overlayVertexShader}
+      />
+    </mesh>
+  )
+}
+
 const ParallaxPlane = ({ layer }: { layer: StageParallaxLayer }) => {
   const plane = useRef<THREE.Group>(null)
   const { texture } = useSafeTexture(layer.imagePath)
@@ -59,7 +122,7 @@ const ForegroundPlane = ({
   if (!texture) return null
   return (
     <group ref={plane} position={[0, 4.6, 2.2]}>
-      <TexturedPlane texture={texture} width={22} height={12.38} opacity={opacity} />
+      <FilteredOverlayPlane texture={texture} width={22} height={12.38} opacity={opacity} />
     </group>
   )
 }
@@ -146,6 +209,12 @@ const ConfiguredStage = ({ stage }: { stage: StageConfig }) => {
       backgroundPlane.current.position.x = camera.position.x * (stage.backgroundFollowFactor ?? 0)
     }
   })
+
+  useEffect(() => {
+    if (background.status === 'error') {
+      console.error(`[STAGE] failed required background ${stage.backgroundImage}; using procedural fallback`)
+    }
+  }, [background.status, stage.backgroundImage])
 
   // Keep the playable procedural stage visible while a required background loads or fails.
   if (stage.backgroundImage && background.status !== 'loaded') return <Arena />

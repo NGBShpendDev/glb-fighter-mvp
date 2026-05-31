@@ -38,14 +38,12 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
   useFrame(({ clock }) => {
     if (!root.current || !skin.current) return
     const fighter = useGameStore.getState().fighters[id]
-    const renderMode = useGameStore.getState().fighterRenderMode
     const idle = Math.sin(clock.elapsedTime * 4.2 + (id === 'p1' ? 0 : 1.4))
-    const settings = fighter.modelSettings
 
     root.current.position.set(fighter.x, fighter.y, 0)
     root.current.rotation.set(0, 0, 0)
-    skin.current.position.set(settings.horizontalOffset, settings.verticalOffset + idle * 0.035, 0)
-    skin.current.rotation.set(0, renderMode === 'glb' ? settings.rotationY + (fighter.facing === 1 ? 0 : Math.PI) : 0, 0)
+    skin.current.position.set(0, idle * 0.035, 0)
+    skin.current.rotation.set(0, 0, 0)
     skin.current.scale.setScalar(1)
 
     if (!fighter.grounded) {
@@ -58,11 +56,10 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
       const progress = fighter.attack.elapsed / spec.duration
       const pulse = Math.sin(progress * Math.PI)
       skin.current.position.x =
-        settings.horizontalOffset + fighter.facing * pulse * (fighter.attack.type === 'special' ? 0.64 : 0.36)
+        fighter.facing * pulse * (fighter.attack.type === 'special' ? 0.64 : 0.36)
 
       if (fighter.attack.type === 'kick') {
         skin.current.rotation.z = -pulse * 0.72
-        if (renderMode === 'glb') skin.current.rotation.y += fighter.facing * pulse * Math.PI * 1.65
       }
 
       if (fighter.attack.type === 'special') {
@@ -84,12 +81,12 @@ export const FighterController = ({ id }: { id: PlayerId }) => {
 
     if (fighter.ko) {
       skin.current.rotation.z = -fighter.facing * Math.PI * 0.48
-      skin.current.position.y = settings.verticalOffset - 0.15
+      skin.current.position.y = -0.15
       skin.current.scale.set(1.12, 0.86, 1.12)
     }
 
     if (fighter.victorious) {
-      skin.current.position.y = settings.verticalOffset + 0.18 + Math.abs(idle) * 0.12
+      skin.current.position.y = 0.18 + Math.abs(idle) * 0.12
       skin.current.rotation.z = idle * 0.035
       skin.current.scale.setScalar(1.04)
     }

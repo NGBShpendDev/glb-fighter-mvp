@@ -60,19 +60,26 @@ const MatchLoop = () => {
 }
 
 const CameraRig = () => {
-  const target = useRef(new THREE.Vector3())
+  const target = useRef(new THREE.Vector3(0, 2.55, 11.4))
+  const focus = useRef(new THREE.Vector3(0, 1.65, 0))
+  const focusTarget = useRef(new THREE.Vector3(0, 1.65, 0))
 
-  useFrame(({ camera, clock }) => {
+  useFrame(({ camera, clock }, delta) => {
     const { fighters, shake } = useGameStore.getState()
     const midpoint = (fighters.p1.x + fighters.p2.x) / 2
     const distance = Math.abs(fighters.p1.x - fighters.p2.x)
-    const jitterX = Math.sin(clock.elapsedTime * 92) * shake
-    const jitterY = Math.cos(clock.elapsedTime * 76) * shake * 0.6
-    const jitterZ = Math.sin(clock.elapsedTime * 128) * shake * 0.38
-    target.current.set(midpoint + jitterX, 2.55 + jitterY, 11.4 + distance * 0.12 + jitterZ)
-    camera.position.lerp(target.current, 0.075)
-    camera.rotation.z = Math.sin(clock.elapsedTime * 104) * shake * 0.012
-    camera.lookAt(midpoint, 1.65, 0)
+    const airborneLift = Math.min(0.48, Math.max(fighters.p1.y, fighters.p2.y) * 0.16)
+    const cameraShake = shake * 0.42
+    const jitterX = Math.sin(clock.elapsedTime * 92) * cameraShake
+    const jitterY = Math.cos(clock.elapsedTime * 76) * cameraShake * 0.56
+    const jitterZ = Math.sin(clock.elapsedTime * 128) * cameraShake * 0.34
+    const damping = 1 - Math.exp(-delta * 7)
+    target.current.set(midpoint + jitterX, 2.55 + airborneLift + jitterY, 11.35 + distance * 0.12 + jitterZ)
+    focusTarget.current.set(midpoint, 1.65 + airborneLift * 0.55, 0)
+    focus.current.lerp(focusTarget.current, damping)
+    camera.position.lerp(target.current, damping)
+    camera.rotation.z = Math.sin(clock.elapsedTime * 104) * cameraShake * 0.008
+    camera.lookAt(focus.current)
   })
   return null
 }
