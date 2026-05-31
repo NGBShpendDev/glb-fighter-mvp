@@ -9,9 +9,7 @@ walk.png
 jump.png
 block.png
 light-punch.png
-heavy-punch.png
 kick.png
-special.png
 hit.png
 ko.png
 victory.png
@@ -33,4 +31,4 @@ Frame counts and FPS values are configured in `src/game/spriteFighters.ts`. The 
 | ko | 5 |
 | victory | 4 |
 
-`kick.png` is included. Heavy punch temporarily reuses `light-punch.png`, and special temporarily reuses `kick.png`. Add `heavy-punch.png` and `special.png` when those sheets are ready. The renderer keeps these fallback links as safety nets for incomplete deployments.
+`kick.png` is included. Optional dash, heavy punch, special, and knockdown art can be added later as `dash.png`, `heavy-punch.png`, `special.png`, and `knockdown.png`. Until then, the renderer safely uses walk, light punch, kick, and KO visuals. See `docs/SPRITE_PRODUCTION_SPEC.md` for the upgraded `512x512` production format.
