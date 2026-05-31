@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { ARENA_LIMIT, ATTACKS, CONTROLS, GROUND_Y, ROUND_SECONDS } from '../game/constants'
 import { boxesOverlap, getAttackHitbox, getHurtbox } from '../game/hitboxes'
+import { DEFAULT_MODEL_SETTINGS } from '../game/models'
+import { ACTIVE_STAGE_ID } from '../game/stages'
+import { createVfxEvent, MAX_ACTIVE_VFX } from '../game/vfx'
 import type {
   AttackType,
   FighterLoadout,
@@ -9,12 +12,20 @@ import type {
   FighterStats,
   HitSpark,
   MatchPhase,
+  ModelDiagnostic,
   PlayerId,
   UploadedCharacter,
+  VfxEvent,
+  VfxKind,
 } from '../game/types'
 
 const UPLOADED_CHARACTERS_KEY = 'ape-fighter-uploaded-characters'
 const BALANCED_STATS: FighterStats = { power: 70, speed: 70, defense: 70 }
+const pendingModelDiagnostic = (modelUrl: string): ModelDiagnostic => ({
+  modelUrl,
+  status: 'idle',
+  message: 'Waiting for model loader.',
+})
 
 const readUploadedCharacters = (): UploadedCharacter[] => {
   if (typeof window === 'undefined') return []
@@ -87,14 +98,14 @@ const defaultLoadout: Record<PlayerId, FighterLoadout> = {
   p1: {
     name: 'NEON STRIKER',
     modelUrl: '/models/fighter-1.glb',
-    modelSettings: { scale: 1, rotationY: Math.PI / 2, verticalOffset: 0, horizontalOffset: 0 },
+    modelSettings: { ...DEFAULT_MODEL_SETTINGS },
     stats: { power: 76, speed: 82, defense: 62 },
     specialMove: 'NEON OVERDRIVE',
   },
   p2: {
     name: 'CRIMSON RIOT',
     modelUrl: '/models/fighter-2.glb',
-    modelSettings: { scale: 1, rotationY: Math.PI / 2, verticalOffset: 0, horizontalOffset: 0 },
+    modelSettings: { ...DEFAULT_MODEL_SETTINGS },
     stats: { power: 88, speed: 58, defense: 78 },
     specialMove: 'RIOT BREAKER',
   },
@@ -129,30 +140,46 @@ const clamp = (value: number, min: number, max: number) =>
 const pressed = new Set<string>()
 const tapped = new Set<string>()
 
+const clearInputState = () => {
+  pressed.clear()
+  tapped.clear()
+}
+
 type GameStore = {
   phase: MatchPhase
   fighters: Record<PlayerId, FighterState>
   loadout: Record<PlayerId, FighterLoadout>
+  modelDiagnostics: Record<PlayerId, ModelDiagnostic>
   uploadedCharacters: UploadedCharacter[]
+  selectedStageId: string
   timer: number
   winner: PlayerId | null
   sparks: HitSpark[]
+  vfx: VfxEvent[]
   shake: number
   hitStop: number
+  slowMotion: number
   roundIntro: number
   perfect: boolean
   soundEnabled: boolean
   debugHitboxes: boolean
   nextSparkId: number
+  nextVfxId: number
   startMatch: () => void
   rematch: () => void
+  restartMatch: () => void
+  returnToTitle: () => void
+  togglePause: () => void
+  clearInput: () => void
   setFighterLoadout: (id: PlayerId, loadout: Partial<FighterLoadout>) => void
   setFighterModelSetting: (id: PlayerId, setting: keyof FighterModelSettings, value: number) => void
+  setModelDiagnostic: (id: PlayerId, diagnostic: ModelDiagnostic) => void
   addUploadedCharacter: (character: UploadedCharacter) => void
   useUploadedCharacter: (id: PlayerId, character: UploadedCharacter) => void
   setKey: (code: string, down: boolean) => void
   toggleHitboxes: () => void
   toggleSound: () => void
+  setSelectedStageId: (stageId: string) => void
   update: (delta: number) => void
 }
 
@@ -198,6 +225,7 @@ const resolveHit = (
       color: blocked ? '#95d7ff' : attacker.attack.type === 'special' ? attacker.accent : spec.spark,
       blocked,
       kind: attacker.attack.type,
+      direction: attacker.facing,
     },
     shake: blocked ? 0.16 : attacker.attack.type === 'special' ? 0.62 : attacker.attack.type === 'heavy' ? 0.42 : 0.28,
   }
@@ -295,39 +323,75 @@ export const useGameStore = create<GameStore>((set, get) => ({
   phase: 'title',
   fighters: freshFighters(defaultLoadout),
   loadout: defaultLoadout,
+  modelDiagnostics: {
+    p1: pendingModelDiagnostic(defaultLoadout.p1.modelUrl),
+    p2: pendingModelDiagnostic(defaultLoadout.p2.modelUrl),
+  },
   uploadedCharacters: readUploadedCharacters(),
+  selectedStageId: ACTIVE_STAGE_ID,
   timer: ROUND_SECONDS,
   winner: null,
   sparks: [],
+  vfx: [],
   shake: 0,
   hitStop: 0,
+  slowMotion: 0,
   roundIntro: 0,
   perfect: false,
   soundEnabled: true,
   debugHitboxes: false,
   nextSparkId: 1,
+  nextVfxId: 1,
 
   startMatch: () => {
-    pressed.clear()
-    tapped.clear()
+    clearInputState()
     set({
       phase: 'fight',
       fighters: freshFighters(get().loadout),
       timer: ROUND_SECONDS,
       winner: null,
       sparks: [],
+      vfx: [],
       shake: 0,
       hitStop: 0,
+      slowMotion: 0,
       roundIntro: 2.15,
       perfect: false,
     })
   },
 
   rematch: () => get().startMatch(),
+  restartMatch: () => get().startMatch(),
+
+  returnToTitle: () => {
+    clearInputState()
+    set({
+      phase: 'title',
+      fighters: freshFighters(get().loadout),
+      timer: ROUND_SECONDS,
+      winner: null,
+      sparks: [],
+      vfx: [],
+      shake: 0,
+      hitStop: 0,
+      slowMotion: 0,
+      roundIntro: 0,
+      perfect: false,
+    })
+  },
+
+  togglePause: () => {
+    const { phase } = get()
+    if (phase !== 'fight' && phase !== 'paused') return
+    clearInputState()
+    set({ phase: phase === 'fight' ? 'paused' : 'fight' })
+  },
+
+  clearInput: clearInputState,
 
   setFighterLoadout: (id, nextLoadout) =>
-    set((state) => ({
-      loadout: {
+    set((state) => {
+      const loadout = {
         ...state.loadout,
         [id]: {
           ...state.loadout[id],
@@ -336,8 +400,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ? { ...state.loadout[id].modelSettings, ...nextLoadout.modelSettings }
             : state.loadout[id].modelSettings,
         },
-      },
-    })),
+      }
+      const modelUrl = loadout[id].modelUrl
+      return {
+        loadout,
+        modelDiagnostics:
+          modelUrl === state.modelDiagnostics[id].modelUrl
+            ? state.modelDiagnostics
+            : { ...state.modelDiagnostics, [id]: pendingModelDiagnostic(modelUrl) },
+      }
+    }),
 
   setFighterModelSetting: (id, setting, value) =>
     set((state) => ({
@@ -350,6 +422,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
     })),
 
+  setModelDiagnostic: (id, diagnostic) =>
+    set((state) => {
+      const previous = state.modelDiagnostics[id]
+      if (
+        previous.modelUrl === diagnostic.modelUrl &&
+        previous.status === diagnostic.status &&
+        previous.message === diagnostic.message &&
+        previous.normalizedScale === diagnostic.normalizedScale
+      ) {
+        return state
+      }
+      return {
+        modelDiagnostics: { ...state.modelDiagnostics, [id]: diagnostic },
+      }
+    }),
+
   addUploadedCharacter: (character) =>
     set((state) => {
       const uploadedCharacters = [
@@ -361,49 +449,93 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }),
 
   useUploadedCharacter: (id, character) =>
-    set((state) => ({
-      loadout: {
+    set((state) => {
+      const loadout = {
         ...state.loadout,
         [id]: uploadedCharacterLoadout(character),
-      },
-    })),
+      }
+      return {
+        loadout,
+        modelDiagnostics: {
+          ...state.modelDiagnostics,
+          [id]: pendingModelDiagnostic(loadout[id].modelUrl),
+        },
+      }
+    }),
 
   setKey: (code, down) => {
+    if (!down) {
+      pressed.delete(code)
+      return
+    }
+    if (get().phase === 'paused') return
     if (down && !pressed.has(code)) tapped.add(code)
-    if (down) pressed.add(code)
-    else pressed.delete(code)
+    pressed.add(code)
   },
 
   toggleHitboxes: () => set((state) => ({ debugHitboxes: !state.debugHitboxes })),
   toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+  setSelectedStageId: (selectedStageId) => set({ selectedStageId }),
 
   update: (rawDelta) => {
     const state = get()
-    const delta = Math.min(rawDelta, 0.05)
+    const frameDelta = Math.min(rawDelta, 0.05)
+    const delta = frameDelta * (state.slowMotion > 0 ? 0.34 : 1)
+    let slowMotion = Math.max(0, state.slowMotion - frameDelta)
     const sparks = state.sparks
       .map((spark) => ({ ...spark, age: spark.age + delta }))
       .filter((spark) => spark.age < spark.life)
+    let vfx = state.vfx
+      .map((effect) => ({ ...effect, age: effect.age + delta }))
+      .filter((effect) => effect.age < effect.life)
 
     if (state.hitStop > 0) {
-      set({ sparks, hitStop: Math.max(0, state.hitStop - delta) })
+      set({ sparks, vfx, slowMotion, hitStop: Math.max(0, state.hitStop - frameDelta) })
       tapped.clear()
       return
     }
 
     if (state.phase !== 'fight') {
-      set({ sparks, shake: Math.max(0, state.shake - delta * 2.2) })
+      set({ sparks, vfx, slowMotion, shake: Math.max(0, state.shake - delta * 2.2) })
       tapped.clear()
       return
     }
 
     if (state.roundIntro > 0) {
-      set({ sparks, roundIntro: Math.max(0, state.roundIntro - delta) })
+      set({ sparks, vfx, slowMotion, roundIntro: Math.max(0, state.roundIntro - delta) })
       tapped.clear()
       return
     }
 
     let p1 = stepFighter(state.fighters.p1, state.fighters.p2, delta)
     let p2 = stepFighter(state.fighters.p2, p1, delta)
+    let nextVfxId = state.nextVfxId
+    const spawnVfx = (
+      kind: VfxKind,
+      x: number,
+      y: number,
+      direction: 1 | -1,
+      scale = 1,
+      z?: number,
+    ) => {
+      vfx.push(createVfxEvent(nextVfxId, kind, x, y, direction, scale, z))
+      nextVfxId += 1
+      if (vfx.length > MAX_ACTIVE_VFX) vfx = vfx.slice(-MAX_ACTIVE_VFX)
+    }
+    const emitMotionVfx = (previous: FighterState, next: FighterState) => {
+      if (previous.dashCooldown <= 0 && next.dashCooldown > 0) {
+        spawnVfx('dustPuff', next.x - next.facing * 0.32, GROUND_Y + 0.12, next.facing, 0.88, 1)
+      }
+      if (!previous.grounded && next.grounded) {
+        spawnVfx('dustPuff', next.x, GROUND_Y + 0.12, next.facing, 1.05, 1)
+      }
+      if (next.attack?.type === 'special' && previous.attack?.type !== 'special') {
+        spawnVfx('energySlash', next.x + next.facing * 0.88, next.y + 1.32, next.facing, 1, 1.45)
+      }
+    }
+
+    emitMotionVfx(state.fighters.p1, p1)
+    emitMotionVfx(state.fighters.p2, p2)
 
     const distance = Math.abs(p1.x - p2.x)
     if (distance < 0.82 && Math.abs(p1.y - p2.y) < 1.25) {
@@ -420,6 +552,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       p1 = firstHit.attacker
       p2 = firstHit.defender
       sparks.push(firstHit.spark)
+      spawnVfx(firstHit.spark.blocked ? 'blockSpark' : 'hitSpark', firstHit.spark.x, firstHit.spark.y, firstHit.spark.direction, firstHit.spark.kind === 'heavy' ? 1.22 : 1)
       shake = Math.max(shake, firstHit.shake)
       set({ hitStop: firstHit.spark.blocked ? 0.035 : firstHit.spark.kind === 'special' ? 0.13 : firstHit.spark.kind === 'heavy' ? 0.09 : 0.055 })
       nextSparkId += 1
@@ -430,6 +563,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       p2 = secondHit.attacker
       p1 = secondHit.defender
       sparks.push(secondHit.spark)
+      spawnVfx(secondHit.spark.blocked ? 'blockSpark' : 'hitSpark', secondHit.spark.x, secondHit.spark.y, secondHit.spark.direction, secondHit.spark.kind === 'heavy' ? 1.22 : 1)
       shake = Math.max(shake, secondHit.shake)
       set({ hitStop: secondHit.spark.blocked ? 0.035 : secondHit.spark.kind === 'special' ? 0.13 : secondHit.spark.kind === 'heavy' ? 0.09 : 0.055 })
       nextSparkId += 1
@@ -441,12 +575,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let perfect = false
 
     if (p1.health <= 0 || p2.health <= 0 || timer <= 0) {
-      winner = p1.health === p2.health ? (p1.x <= p2.x ? 'p1' : 'p2') : p1.health > p2.health ? 'p1' : 'p2'
+      const knockout = p1.health <= 0 || p2.health <= 0
+      winner = p1.health === p2.health ? null : p1.health > p2.health ? 'p1' : 'p2'
       phase = 'ko'
-      perfect = (winner === 'p1' ? p1.health : p2.health) === 100
+      perfect = winner !== null && (winner === 'p1' ? p1.health : p2.health) === 100
       p1 = { ...p1, ko: winner !== 'p1', victorious: winner === 'p1', blocking: false }
       p2 = { ...p2, ko: winner !== 'p2', victorious: winner === 'p2', blocking: false }
-      shake = Math.max(shake, 0.45)
+      if (knockout) {
+        const defeated = p1.health <= 0 ? p1 : p2
+        const victor = p1.health <= 0 ? p2 : p1
+        spawnVfx('hitSpark', defeated.x, defeated.y + 1.2, victor.facing, 1.8, 1.7)
+        shake = Math.max(shake, 0.92)
+        slowMotion = Math.max(slowMotion, 0.48)
+      }
     }
 
     set({
@@ -455,9 +596,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       phase,
       winner,
       sparks,
+      vfx,
       shake,
+      slowMotion,
       perfect,
       nextSparkId,
+      nextVfxId,
     })
     tapped.clear()
   },
