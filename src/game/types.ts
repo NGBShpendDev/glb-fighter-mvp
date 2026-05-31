@@ -1,6 +1,8 @@
 export type PlayerId = 'p1' | 'p2'
 export type MatchPhase = 'title' | 'fight' | 'paused' | 'ko'
 export type AttackType = 'light' | 'heavy' | 'kick' | 'special'
+export type FighterRenderMode = 'glb' | 'sprite'
+export type SpriteFighterId = 'fighter-1' | 'fighter-2'
 
 export type AttackState = {
   type: AttackType
@@ -36,6 +38,7 @@ export type FighterStats = {
 export type FighterLoadout = {
   name: string
   modelUrl: string
+  spriteFighterId: SpriteFighterId
   modelSettings: FighterModelSettings
   stats: FighterStats
   specialMove: string
@@ -45,6 +48,7 @@ export type UploadedCharacter = {
   id: string
   name: string
   modelUrl: string
+  spriteFighterId?: SpriteFighterId
   scale: number
   rotation: number
   verticalOffset: number
@@ -56,6 +60,7 @@ export type FighterState = {
   id: PlayerId
   name: string
   modelUrl: string
+  spriteFighterId: SpriteFighterId
   modelSettings: FighterModelSettings
   stats: FighterStats
   specialMove: string
