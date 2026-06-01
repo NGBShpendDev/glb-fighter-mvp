@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build && node scripts/remove-retired-models.mjs",
     "test:game": "node scripts/test-game-state.mjs",
     "test:sprites": "node scripts/test-sprites.mjs",
+    "audit:sprites": "node scripts/audit-sprite-assets.mjs",
+    "clean:sprite-backgrounds": "node scripts/clean-sprite-backgrounds.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

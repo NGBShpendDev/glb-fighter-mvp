@@ -31,12 +31,17 @@ Run the automated checks and production build:
 ```bash
 npm run test:game
 npm run test:sprites
+npm run audit:sprites
 npm run build
 ```
 
 `npm run test:game` verifies arena bounds, movement, jumping, dashing, blocking, hits, VFX, KO, pause, rematch, draws, and every Player 2 control mode.
 
 `npm run test:sprites` verifies sprite folders, required animation configs, PNG files, frame counts, public asset URLs, and visual-state animation mapping.
+
+`npm run audit:sprites` prints a repeatable fighter-by-fighter asset report: present and missing files, broken config references, unused PNGs, non-integer frame widths, and likely baked checkerboard backgrounds. If a generated sheet accidentally includes a neutral checkerboard background, run `npm run clean:sprite-backgrounds`, inspect the result, and rerun the audit.
+
+The cleanup command converts border-connected neutral checkerboard pixels into real PNG alpha. It intentionally does not erase painted or gradient backdrops because those should be re-exported from the source art.
 
 ## Controls
 
@@ -157,6 +162,7 @@ Add the fighter ID to `SpriteFighterId` in `src/game/types.ts`, then add its con
 {
   id: 'my-fighter',
   name: 'MY FIGHTER',
+  sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
   verticalOffset: 0,
@@ -189,10 +195,10 @@ Read the full production checklist in [`docs/SPRITE_PRODUCTION_SPEC.md`](docs/SP
 
 ## Existing Fighters
 
-- `SAFARI STRIKER`: `public/assets/fighters/fighter-1/`
-- `CRIMSON RIOT`: `public/assets/fighters/fighter-2/`
+- `CHEETAH CHIEF`: `public/assets/fighters/fighter-1/`
+- `PARTY BOT`: `public/assets/fighters/fighter-2/`
 
-Both currently reuse their nearest completed sheet for heavy punch and special animation visuals. Combat timing and hitboxes remain distinct.
+Both fighters include the full upgraded sprite set: portrait, dash, heavy punch, special, and knockdown. Combat timing and hitboxes remain distinct.
 
 ## Stage And VFX Assets
 
