@@ -95,6 +95,7 @@ try {
     const resolvedAnimations = resolveSpriteAnimations(config)
     await access(`public/assets/fighters/${id}`)
     assert(config.scale > 0, `${id} sprite scale is positive`)
+    assert(Math.abs(config.sourceFacing) === 1, `${id} declares a left- or right-facing source sprite direction`)
     assert(config.originX >= 0 && config.originX <= 1 && config.originY >= 0 && config.originY <= 1, `${id} exposes a normalized sprite pivot`)
     assert(
       (config.frameWidth === undefined && config.frameHeight === undefined) ||
