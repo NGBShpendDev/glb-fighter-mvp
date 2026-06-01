@@ -8,8 +8,6 @@ export const ATTACKS: Record<
   AttackType,
   {
     duration: number
-    activeStart: number
-    activeEnd: number
     range: number
     height: number
     offsetY: number
@@ -24,8 +22,6 @@ export const ATTACKS: Record<
 > = {
   light: {
     duration: 0.32,
-    activeStart: 0.1,
-    activeEnd: 0.2,
     range: 1.08,
     height: 0.75,
     offsetY: 1.45,
@@ -39,8 +35,6 @@ export const ATTACKS: Record<
   },
   heavy: {
     duration: 0.54,
-    activeStart: 0.22,
-    activeEnd: 0.36,
     range: 1.28,
     height: 0.92,
     offsetY: 1.55,
@@ -54,8 +48,6 @@ export const ATTACKS: Record<
   },
   kick: {
     duration: 0.62,
-    activeStart: 0.22,
-    activeEnd: 0.45,
     range: 1.45,
     height: 0.72,
     offsetY: 0.86,
@@ -69,8 +61,6 @@ export const ATTACKS: Record<
   },
   special: {
     duration: 0.88,
-    activeStart: 0.32,
-    activeEnd: 0.62,
     range: 1.82,
     height: 1.18,
     offsetY: 1.35,

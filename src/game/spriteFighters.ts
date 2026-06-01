@@ -172,7 +172,7 @@ const attackPhases = (
 
 const fighter1: SpriteFighterConfig = {
   id: 'fighter-1',
-  name: 'SAFARI STRIKER',
+  name: 'CHEETAH CHIEF',
   sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
@@ -180,54 +180,61 @@ const fighter1: SpriteFighterConfig = {
   originX: 0.5,
   originY: 0,
   anchorPath: '/assets/fighters/fighter-1/anchor.png',
+  portraitPath: '/assets/fighters/fighter-1/portrait.png',
   animations: {
     idle: animation('fighter-1', 'idle', 4, 7, true),
     walk: animation('fighter-1', 'walk', 6, 10, true),
+    dash: animation('fighter-1', 'dash', 5, 16, false, 'dash', {
+      fallbackAnimation: 'walk',
+    }),
     jump: animation('fighter-1', 'jump', 4, 9, false, 'jump', { offsetY: -0.03 }),
     block: animation('fighter-1', 'block', 3, 7, true, 'block', { scale: 0.98 }),
-    lightPunch: animation('fighter-1', 'lightPunch', 5, 14, false, 'light-punch', {
+    lightPunch: animation('fighter-1', 'lightPunch', 6, 15, false, 'light-punch', {
       scale: 0.98,
       offsetX: 0.05,
-      hitFrames: [2],
-      attackPhases: attackPhases([0, 1], [2], [3, 4]),
+      hitFrames: [2, 3],
+      attackPhases: attackPhases([0, 1], [2, 3], [4, 5]),
       soundEventFrame: 2,
-      cancelWindows: [{ fromFrame: 3, toFrame: 4, into: ['heavyPunch', 'kick', 'special'] }],
+      cancelWindows: [{ fromFrame: 4, toFrame: 5, into: ['heavyPunch', 'kick', 'special'] }],
     }),
     heavyPunch: {
-      ...animation('fighter-1', 'heavyPunch', 5, 12, false, 'heavy-punch', {
-        hitFrames: [2, 3],
-        attackPhases: attackPhases([0, 1], [2, 3], [4]),
-        soundEventFrame: 2,
+      ...animation('fighter-1', 'heavyPunch', 7, 12, false, 'heavy-punch', {
+        hitFrames: [3, 4],
+        attackPhases: attackPhases([0, 1, 2], [3, 4], [5, 6]),
+        soundEventFrame: 3,
         fallbackAnimation: 'lightPunch',
-        cancelWindows: [{ fromFrame: 4, toFrame: 4, into: ['special'] }],
+        cancelWindows: [{ fromFrame: 6, toFrame: 6, into: ['special'] }],
       }),
     },
     kick: {
-      ...animation('fighter-1', 'kick', 5, 13, false, 'kick', {
-        hitFrames: [2, 3],
-        attackPhases: attackPhases([0, 1], [2, 3], [4]),
-        soundEventFrame: 2,
+      ...animation('fighter-1', 'kick', 7, 13, false, 'kick', {
+        hitFrames: [3, 4],
+        attackPhases: attackPhases([0, 1, 2], [3, 4], [5, 6]),
+        soundEventFrame: 3,
         fallbackAnimation: 'lightPunch',
-        cancelWindows: [{ fromFrame: 4, toFrame: 4, into: ['special'] }],
+        cancelWindows: [{ fromFrame: 6, toFrame: 6, into: ['special'] }],
       }),
     },
     special: {
-      ...animation('fighter-1', 'special', 5, 10, false, 'special', {
-        hitFrames: [2, 3],
-        attackPhases: attackPhases([0, 1], [2, 3], [4]),
-        soundEventFrame: 2,
+      ...animation('fighter-1', 'special', 8, 11, false, 'special', {
+        hitFrames: [4, 5],
+        attackPhases: attackPhases([0, 1, 2, 3], [4, 5], [6, 7]),
+        soundEventFrame: 4,
         fallbackAnimation: 'kick',
       }),
     },
     hit: animation('fighter-1', 'hit', 3, 11, false, 'hit', { offsetY: -0.02 }),
-    ko: animation('fighter-1', 'ko', 5, 7, false, 'ko', { scale: 1.04, offsetY: -0.04 }),
+    knockdown: animation('fighter-1', 'knockdown', 6, 9, false, 'knockdown', {
+      fallbackAnimation: 'ko',
+    }),
+    ko: animation('fighter-1', 'ko', 6, 7, false, 'ko', { scale: 1.04, offsetY: -0.04 }),
     victory: animation('fighter-1', 'victory', 4, 7, true, 'victory', { scale: 1.02 }),
   },
 }
 
 const fighter2: SpriteFighterConfig = {
   id: 'fighter-2',
-  name: 'CRIMSON RIOT',
+  name: 'PARTY BOT',
   sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
@@ -235,44 +242,52 @@ const fighter2: SpriteFighterConfig = {
   originX: 0.5,
   originY: 0,
   anchorPath: '/assets/fighters/fighter-2/anchor.png',
+  portraitPath: '/assets/fighters/fighter-2/portrait.png',
   animations: {
     idle: animation('fighter-2', 'idle', 4, 7, true),
     walk: animation('fighter-2', 'walk', 6, 10, true),
+    dash: animation('fighter-2', 'dash', 5, 16, false, 'dash', {
+      fallbackAnimation: 'walk',
+    }),
     jump: animation('fighter-2', 'jump', 4, 9, false, 'jump', { offsetY: -0.03 }),
     block: animation('fighter-2', 'block', 3, 7, true, 'block', { scale: 0.98 }),
-    lightPunch: animation('fighter-2', 'lightPunch', 5, 14, false, 'light-punch', {
+    lightPunch: animation('fighter-2', 'lightPunch', 6, 15, false, 'light-punch', {
       scale: 0.98,
       offsetX: 0.05,
-      hitFrames: [2],
-      attackPhases: attackPhases([0, 1], [2], [3, 4]),
+      hitFrames: [2, 3],
+      attackPhases: attackPhases([0, 1], [2, 3], [4, 5]),
       soundEventFrame: 2,
-      cancelWindows: [{ fromFrame: 3, toFrame: 4, into: ['heavyPunch', 'kick', 'special'] }],
+      cancelWindows: [{ fromFrame: 4, toFrame: 5, into: ['heavyPunch', 'kick', 'special'] }],
     }),
     heavyPunch: {
-      ...animation('fighter-2', 'heavyPunch', 5, 12, false, 'heavy-punch', {
-        hitFrames: [2, 3],
-        attackPhases: attackPhases([0, 1], [2, 3], [4]),
-        soundEventFrame: 2,
+      ...animation('fighter-2', 'heavyPunch', 7, 12, false, 'heavy-punch', {
+        hitFrames: [3, 4],
+        attackPhases: attackPhases([0, 1, 2], [3, 4], [5, 6]),
+        soundEventFrame: 3,
         fallbackAnimation: 'lightPunch',
-        cancelWindows: [{ fromFrame: 4, toFrame: 4, into: ['special'] }],
+        cancelWindows: [{ fromFrame: 6, toFrame: 6, into: ['special'] }],
       }),
     },
-    kick: animation('fighter-2', 'kick', 5, 13, false, 'kick', {
-      hitFrames: [2, 3],
-      attackPhases: attackPhases([0, 1], [2, 3], [4]),
-      soundEventFrame: 2,
-      cancelWindows: [{ fromFrame: 4, toFrame: 4, into: ['special'] }],
+    kick: animation('fighter-2', 'kick', 7, 13, false, 'kick', {
+      hitFrames: [3, 4],
+      attackPhases: attackPhases([0, 1, 2], [3, 4], [5, 6]),
+      soundEventFrame: 3,
+      fallbackAnimation: 'lightPunch',
+      cancelWindows: [{ fromFrame: 6, toFrame: 6, into: ['special'] }],
     }),
     special: {
-      ...animation('fighter-2', 'special', 5, 10, false, 'special', {
-        hitFrames: [2, 3],
-        attackPhases: attackPhases([0, 1], [2, 3], [4]),
-        soundEventFrame: 2,
+      ...animation('fighter-2', 'special', 8, 11, false, 'special', {
+        hitFrames: [4, 5],
+        attackPhases: attackPhases([0, 1, 2, 3], [4, 5], [6, 7]),
+        soundEventFrame: 4,
         fallbackAnimation: 'kick',
       }),
     },
     hit: animation('fighter-2', 'hit', 3, 11, false, 'hit', { offsetY: -0.02 }),
-    ko: animation('fighter-2', 'ko', 5, 7, false, 'ko', { scale: 1.04, offsetY: -0.04 }),
+    knockdown: animation('fighter-2', 'knockdown', 6, 9, false, 'knockdown', {
+      fallbackAnimation: 'ko',
+    }),
+    ko: animation('fighter-2', 'ko', 6, 7, false, 'ko', { scale: 1.04, offsetY: -0.04 }),
     victory: animation('fighter-2', 'victory', 4, 7, true, 'victory', { scale: 1.02 }),
   },
 }
