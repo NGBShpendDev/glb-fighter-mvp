@@ -115,6 +115,7 @@ export const SpriteFighter = ({
   const transition = useRef(1)
   const visual = useRef<THREE.Group>(null)
   const facing = useRef<THREE.Group>(null)
+  const material = useRef<THREE.ShaderMaterial>(null)
   const lastReportedFrame = useRef(-1)
   const fallbackTexture = useMemo(() => createFallbackTexture(accent), [accent])
   const renderedSheet = loaded.texture ? animation : alternateLoaded.texture && alternateAnimation ? alternateAnimation : animation
@@ -124,17 +125,26 @@ export const SpriteFighter = ({
   const renderedFrameCount = usingGeneratedFallback ? 1 : renderedSheet.frameCount
   const uniforms = useMemo(
     () => ({
-      uMap: { value: texture },
+      uMap: { value: fallbackTexture as THREE.Texture },
       uFrame: { value: 0 },
-      uFrameCount: { value: renderedFrameCount },
+      uFrameCount: { value: 1 },
       uTextureWidth: { value: 1 },
-      uFilterPaleBackground: { value: usingGeneratedFallback ? 0 : 1 },
+      uFilterPaleBackground: { value: 0 },
       uOpacity: { value: 1 },
     }),
-    [renderedFrameCount, texture, usingGeneratedFallback],
+    [fallbackTexture],
   )
 
   useEffect(() => () => fallbackTexture.dispose(), [fallbackTexture])
+
+  useEffect(() => {
+    uniforms.uMap.value = texture
+    uniforms.uFrame.value = 0
+    uniforms.uFrameCount.value = renderedFrameCount
+    uniforms.uTextureWidth.value = (texture.image as { width?: number } | undefined)?.width ?? 1
+    uniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
+    if (material.current) material.current.uniformsNeedUpdate = true
+  }, [renderedFrameCount, texture, uniforms, usingGeneratedFallback])
 
   useEffect(() => {
     const message =
@@ -190,8 +200,11 @@ export const SpriteFighter = ({
     }
 
     const sourceWidth = (texture.image as { width?: number } | undefined)?.width ?? 1
+    uniforms.uMap.value = texture
+    uniforms.uFrameCount.value = renderedFrameCount
     uniforms.uTextureWidth.value = sourceWidth
-    if (facing.current) facing.current.scale.x = fighter.facing
+    uniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
+    if (facing.current) facing.current.scale.x = fighter.facing * config.sourceFacing
 
     if (state.debugSprites && frame.current !== lastReportedFrame.current) {
       lastReportedFrame.current = frame.current
@@ -239,6 +252,7 @@ export const SpriteFighter = ({
           <shaderMaterial
             depthWrite={false}
             fragmentShader={fragmentShader}
+            ref={material}
             side={THREE.DoubleSide}
             toneMapped={false}
             transparent
