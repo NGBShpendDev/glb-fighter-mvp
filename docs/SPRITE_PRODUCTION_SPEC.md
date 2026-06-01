@@ -5,6 +5,7 @@ Use this format for every fighter. Consistent sheets make animation changes pred
 ## Canvas Rules
 
 - Export every animation as a transparent PNG.
+- Do not flatten a checkerboard preview or painted backdrop into the PNG. Run `npm run audit:sprites` after adding art.
 - Use `512x512` pixels per frame for the high-quality source format.
 - Place frames in one horizontal row with no gaps.
 - Keep every frame canvas the same size, including attacks and KO poses.
@@ -95,6 +96,7 @@ Start with:
 
 ```ts
 scale: 3.05,
+sourceFacing: 1,
 horizontalOffset: 0,
 verticalOffset: 0,
 originX: 0.5,
