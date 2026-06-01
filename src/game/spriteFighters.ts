@@ -89,6 +89,7 @@ export const SPRITE_PRODUCTION_SPEC = {
 export type SpriteFighterConfig = {
   id: SpriteFighterId
   name: string
+  sourceFacing: 1 | -1
   scale: number
   horizontalOffset: number
   verticalOffset: number
@@ -172,6 +173,7 @@ const attackPhases = (
 const fighter1: SpriteFighterConfig = {
   id: 'fighter-1',
   name: 'SAFARI STRIKER',
+  sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
   verticalOffset: 0,
@@ -226,6 +228,7 @@ const fighter1: SpriteFighterConfig = {
 const fighter2: SpriteFighterConfig = {
   id: 'fighter-2',
   name: 'CRIMSON RIOT',
+  sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
   verticalOffset: 0,
