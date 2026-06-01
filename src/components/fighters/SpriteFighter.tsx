@@ -138,11 +138,12 @@ export const SpriteFighter = ({
   useEffect(() => () => fallbackTexture.dispose(), [fallbackTexture])
 
   useEffect(() => {
-    uniforms.uMap.value = texture
-    uniforms.uFrame.value = 0
-    uniforms.uFrameCount.value = renderedFrameCount
-    uniforms.uTextureWidth.value = (texture.image as { width?: number } | undefined)?.width ?? 1
-    uniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
+    const activeUniforms = material.current?.uniforms ?? uniforms
+    activeUniforms.uMap.value = texture
+    activeUniforms.uFrame.value = 0
+    activeUniforms.uFrameCount.value = renderedFrameCount
+    activeUniforms.uTextureWidth.value = (texture.image as { width?: number } | undefined)?.width ?? 1
+    activeUniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
     if (material.current) material.current.uniformsNeedUpdate = true
   }, [renderedFrameCount, texture, uniforms, usingGeneratedFallback])
 
@@ -170,6 +171,7 @@ export const SpriteFighter = ({
   useFrame((_, delta) => {
     const state = useGameStore.getState()
     const fighter = state.fighters[id]
+    const activeUniforms = material.current?.uniforms ?? uniforms
     const frozen = state.phase === 'paused' || state.hitStop > 0
     const playbackDelta = delta * (state.slowMotion > 0 ? 0.34 : 1)
     const snapshot = animator.current.update({
@@ -184,7 +186,7 @@ export const SpriteFighter = ({
     if (snapshot.entered) {
       transition.current = 0
       lastReportedFrame.current = -1
-      uniforms.uFrame.value = 0
+      activeUniforms.uFrame.value = 0
       setAnimationName(snapshot.animation)
     }
     frame.current = snapshot.frameIndex
@@ -193,17 +195,17 @@ export const SpriteFighter = ({
     }
 
     if (!usingGeneratedFallback) {
-      uniforms.uFrame.value = Math.min(
+      activeUniforms.uFrame.value = Math.min(
         renderedFrameCount - 1,
         Math.floor((frame.current * renderedFrameCount) / animation.frameCount),
       )
     }
 
     const sourceWidth = (texture.image as { width?: number } | undefined)?.width ?? 1
-    uniforms.uMap.value = texture
-    uniforms.uFrameCount.value = renderedFrameCount
-    uniforms.uTextureWidth.value = sourceWidth
-    uniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
+    activeUniforms.uMap.value = texture
+    activeUniforms.uFrameCount.value = renderedFrameCount
+    activeUniforms.uTextureWidth.value = sourceWidth
+    activeUniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
     if (facing.current) facing.current.scale.x = fighter.facing * config.sourceFacing
 
     if (state.debugSprites && frame.current !== lastReportedFrame.current) {
@@ -221,7 +223,7 @@ export const SpriteFighter = ({
     }
 
     const ease = 1 - Math.pow(1 - transition.current, 3)
-    uniforms.uOpacity.value = 0.72 + ease * 0.28
+    activeUniforms.uOpacity.value = 0.72 + ease * 0.28
     if (visual.current) {
       const settle = 0.94 + ease * 0.06
       visual.current.scale.setScalar(settle)
