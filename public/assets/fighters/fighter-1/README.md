@@ -1,16 +1,21 @@
-# Fighter 1 Sprite Sheets: Safari Striker
+# Fighter 1 Sprite Sheets: Cheetah Chief
 
-The submitted Safari Striker sprite sheets live in this folder. `anchor.png` is the static reference image used when adjusting visual alignment.
+The submitted Cheetah Chief sprite sheets live in this folder. `anchor.png` is the static alignment reference and `portrait.png` is used on the character-select screen.
 
 ```text
 anchor.png
+portrait.png
 idle.png
 walk.png
+dash.png
 jump.png
 block.png
 light-punch.png
+heavy-punch.png
 kick.png
+special.png
 hit.png
+knockdown.png
 ko.png
 victory.png
 ```
@@ -23,12 +28,16 @@ Frame counts and FPS values are configured in `src/game/spriteFighters.ts`. The 
 | --- | ---: |
 | idle | 4 |
 | walk | 6 |
+| dash | 5 |
 | jump | 4 |
 | block | 3 |
-| lightPunch | 5 |
-| kick | 5 |
+| lightPunch | 6 |
+| heavyPunch | 7 |
+| kick | 7 |
+| special | 8 |
 | hit | 3 |
-| ko | 5 |
+| knockdown | 6 |
+| ko | 6 |
 | victory | 4 |
 
-`kick.png` is included. Optional dash, heavy punch, special, and knockdown art can be added later as `dash.png`, `heavy-punch.png`, `special.png`, and `knockdown.png`. Until then, the renderer safely uses walk, light punch, kick, and KO visuals. See `docs/SPRITE_PRODUCTION_SPEC.md` for the upgraded `512x512` production format.
+The upgraded sheets retain visual fallbacks to walk, light punch, kick, and KO if a future upload is missing or fails to load. See `docs/SPRITE_PRODUCTION_SPEC.md` for the upgraded `512x512` production format.
