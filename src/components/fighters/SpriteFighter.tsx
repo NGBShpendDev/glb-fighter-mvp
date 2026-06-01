@@ -25,7 +25,6 @@ const fragmentShader = `
   uniform float uFrame;
   uniform float uFrameCount;
   uniform float uTextureWidth;
-  uniform float uFilterPaleBackground;
   uniform float uOpacity;
   varying vec2 vUv;
 
@@ -35,11 +34,7 @@ const fragmentShader = `
     float frameEnd = (uFrame + 1.0) / uFrameCount;
     vec2 atlasUv = vec2(mix(frameStart + halfTexel, frameEnd - halfTexel, vUv.x), vUv.y);
     vec4 pixel = texture2D(uMap, atlasUv);
-    float brightest = max(pixel.r, max(pixel.g, pixel.b));
-    float darkest = min(pixel.r, min(pixel.g, pixel.b));
-    float saturation = brightest - darkest;
-    float paleNeutral = smoothstep(0.82, 0.97, brightest) * (1.0 - smoothstep(0.025, 0.12, saturation));
-    float alpha = pixel.a * (1.0 - paleNeutral * uFilterPaleBackground) * uOpacity;
+    float alpha = pixel.a * uOpacity;
 
     if (alpha < 0.035) discard;
     gl_FragColor = vec4(pixel.rgb, alpha);
@@ -129,7 +124,6 @@ export const SpriteFighter = ({
       uFrame: { value: 0 },
       uFrameCount: { value: 1 },
       uTextureWidth: { value: 1 },
-      uFilterPaleBackground: { value: 0 },
       uOpacity: { value: 1 },
     }),
     [fallbackTexture],
@@ -143,7 +137,6 @@ export const SpriteFighter = ({
     activeUniforms.uFrame.value = 0
     activeUniforms.uFrameCount.value = renderedFrameCount
     activeUniforms.uTextureWidth.value = (texture.image as { width?: number } | undefined)?.width ?? 1
-    activeUniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
     if (material.current) material.current.uniformsNeedUpdate = true
   }, [renderedFrameCount, texture, uniforms, usingGeneratedFallback])
 
@@ -205,7 +198,6 @@ export const SpriteFighter = ({
     activeUniforms.uMap.value = texture
     activeUniforms.uFrameCount.value = renderedFrameCount
     activeUniforms.uTextureWidth.value = sourceWidth
-    activeUniforms.uFilterPaleBackground.value = usingGeneratedFallback ? 0 : 1
     if (facing.current) facing.current.scale.x = fighter.facing * config.sourceFacing
 
     if (state.debugSprites && frame.current !== lastReportedFrame.current) {
