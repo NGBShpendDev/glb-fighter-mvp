@@ -23,6 +23,7 @@ const animation = (
 export const upgradedSpriteFighterExample = {
   id: 'my-fighter',
   name: 'MY FIGHTER',
+  sourceFacing: 1,
   scale: 3.05,
   horizontalOffset: 0,
   verticalOffset: 0,
