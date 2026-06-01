@@ -68,13 +68,13 @@ const makeFighter = (
 
 const SPRITE_LOADOUTS: Record<SpriteFighterId, FighterLoadout> = {
   'fighter-1': {
-    name: 'SAFARI STRIKER',
+    name: 'CHEETAH CHIEF',
     spriteFighterId: 'fighter-1',
     stats: { power: 76, speed: 82, defense: 62 },
     specialMove: 'NEON OVERDRIVE',
   },
   'fighter-2': {
-    name: 'CRIMSON RIOT',
+    name: 'PARTY BOT',
     spriteFighterId: 'fighter-2',
     stats: { power: 88, speed: 58, defense: 78 },
     specialMove: 'RIOT BREAKER',
