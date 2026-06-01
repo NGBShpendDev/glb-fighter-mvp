@@ -180,14 +180,11 @@ const TitleScreen = () => {
           <strong>FIGHTER</strong>
         </h1>
         <p className="title-card__tagline">SPRITE FIGHTERS. HEAVY HITS. ONE ROUND.</p>
-        <div className="title-card__actions">
-          <button className="primary-button" onClick={startMatch}>
-            ENTER THE ARENA
-          </button>
-        </div>
         <p className="title-card__space">PRESS SPACE TO START</p>
       </div>
       <div className="setup-dock">
+        <CharacterSelect />
+        <StageSelect />
         <div className="controls-panel">
           <div>
             <span className="eyebrow">KEYBOARD MATCHUP</span>
@@ -214,8 +211,9 @@ const TitleScreen = () => {
             />
           </div>
         </div>
-        <StageSelect />
-        <CharacterSelect />
+        <button className="primary-button setup-dock__start" onClick={startMatch}>
+          START BATTLE
+        </button>
       </div>
     </div>
   )

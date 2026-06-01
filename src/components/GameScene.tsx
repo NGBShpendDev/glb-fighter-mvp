@@ -11,6 +11,7 @@ const GAME_KEYS = new Set([
   ...Object.values(CONTROLS.p1),
   ...Object.values(CONTROLS.p2),
   'KeyB',
+  'KeyV',
   'Space',
   'Escape',
 ])
@@ -19,6 +20,7 @@ const ControlsBridge = () => {
   const setKey = useGameStore((state) => state.setKey)
   const startMatch = useGameStore((state) => state.startMatch)
   const toggleHitboxes = useGameStore((state) => state.toggleHitboxes)
+  const toggleSpriteDebug = useGameStore((state) => state.toggleSpriteDebug)
   const togglePause = useGameStore((state) => state.togglePause)
   const clearInput = useGameStore((state) => state.clearInput)
 
@@ -27,6 +29,7 @@ const ControlsBridge = () => {
       if (!GAME_KEYS.has(event.code)) return
       event.preventDefault()
       if (down && !event.repeat && event.code === 'KeyB') toggleHitboxes()
+      if (down && !event.repeat && event.code === 'KeyV') toggleSpriteDebug()
       if (down && !event.repeat && event.code === 'Space' && useGameStore.getState().phase === 'title') {
         startMatch()
       }
@@ -48,7 +51,7 @@ const ControlsBridge = () => {
       window.removeEventListener('blur', clearInput)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [clearInput, setKey, startMatch, toggleHitboxes, togglePause])
+  }, [clearInput, setKey, startMatch, toggleHitboxes, togglePause, toggleSpriteDebug])
 
   return null
 }

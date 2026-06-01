@@ -14,6 +14,7 @@ const FighterPicker = ({ id }: { id: PlayerId }) => {
   return (
     <article className={`fighter-picker fighter-picker--${id}`}>
       <UiAtlasSprite region="portrait" />
+      <span className="fighter-picker__selected">{id === 'p1' ? 'P1 SELECTED' : 'P2 SELECTED'}</span>
       <div className="fighter-picker__topline">
         <span className="eyebrow">{label}</span>
         <strong>{loadout.name}</strong>

@@ -34,62 +34,69 @@ const DebugBoxes = ({ id }: { id: PlayerId }) => {
 export const FighterController = ({ id }: { id: PlayerId }) => {
   const root = useRef<THREE.Group>(null)
   const skin = useRef<THREE.Group>(null)
+  const targetPosition = useRef(new THREE.Vector3())
+  const targetScale = useRef(new THREE.Vector3(1, 1, 1))
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     if (!root.current || !skin.current) return
     const fighter = useGameStore.getState().fighters[id]
     const idle = Math.sin(clock.elapsedTime * 4.2 + (id === 'p1' ? 0 : 1.4))
+    const visualBlend = 1 - Math.exp(-delta * 22)
+    const idleWeight = !fighter.attack && fighter.grounded && !fighter.blocking && fighter.hitStun <= 0 ? 1 : 0
 
     root.current.position.set(fighter.x, fighter.y, 0)
     root.current.rotation.set(0, 0, 0)
-    skin.current.position.set(0, idle * 0.035, 0)
-    skin.current.rotation.set(0, 0, 0)
-    skin.current.scale.setScalar(1)
+    targetPosition.current.set(0, idle * 0.025 * idleWeight, 0)
+    targetScale.current.set(1, 1, 1)
+    let targetRotation = 0
 
     if (!fighter.grounded) {
       const jumpStretch = Math.min(0.14, Math.abs(fighter.vy) * 0.015)
-      skin.current.scale.set(1 - jumpStretch * 0.45, 1 + jumpStretch, 1 - jumpStretch * 0.45)
+      targetScale.current.set(1 - jumpStretch * 0.32, 1 + jumpStretch * 0.72, 1 - jumpStretch * 0.32)
     }
 
     if (fighter.attack) {
       const spec = ATTACKS[fighter.attack.type]
       const progress = fighter.attack.elapsed / spec.duration
       const pulse = Math.sin(progress * Math.PI)
-      skin.current.position.x =
-        fighter.facing * pulse * (fighter.attack.type === 'special' ? 0.64 : 0.36)
+      targetPosition.current.x =
+        fighter.facing * pulse * (fighter.attack.type === 'special' ? 0.38 : 0.2)
 
       if (fighter.attack.type === 'kick') {
-        skin.current.rotation.z = -pulse * 0.72
+        targetRotation = -fighter.facing * pulse * 0.08
       }
 
       if (fighter.attack.type === 'special') {
-        skin.current.rotation.z = -pulse * 0.18
-        skin.current.scale.set(1 + pulse * 0.22, 1 - pulse * 0.08, 1 + pulse * 0.22)
+        targetRotation = -fighter.facing * pulse * 0.08
+        targetScale.current.set(1 + pulse * 0.12, 1 - pulse * 0.045, 1 + pulse * 0.12)
       }
     }
 
     if (fighter.blocking) {
-      skin.current.rotation.z = -0.1
-      skin.current.position.x -= fighter.facing * 0.12
+      targetRotation = -fighter.facing * 0.04
+      targetPosition.current.x -= fighter.facing * 0.08
     }
 
     if (fighter.hitStun > 0) {
-      skin.current.rotation.z = 0.22
-      skin.current.position.x -= fighter.facing * 0.15
-      skin.current.scale.set(0.88, 1.08, 0.88)
+      targetRotation = fighter.facing * 0.08
+      targetPosition.current.x -= fighter.facing * 0.12
+      targetScale.current.set(0.93, 1.045, 0.93)
     }
 
     if (fighter.ko) {
-      skin.current.rotation.z = -fighter.facing * Math.PI * 0.48
-      skin.current.position.y = -0.15
-      skin.current.scale.set(1.12, 0.86, 1.12)
+      targetPosition.current.y = -0.08
+      targetScale.current.set(1.06, 0.94, 1.06)
     }
 
     if (fighter.victorious) {
-      skin.current.position.y = 0.18 + Math.abs(idle) * 0.12
-      skin.current.rotation.z = idle * 0.035
-      skin.current.scale.setScalar(1.04)
+      targetPosition.current.y = 0.08 + Math.abs(idle) * 0.06
+      targetRotation = idle * 0.02
+      targetScale.current.setScalar(1.025)
     }
+
+    skin.current.position.lerp(targetPosition.current, visualBlend)
+    skin.current.rotation.z = THREE.MathUtils.lerp(skin.current.rotation.z, targetRotation, visualBlend)
+    skin.current.scale.lerp(targetScale.current, visualBlend)
   })
 
   const accent = useGameStore((state) => state.fighters[id].accent)
