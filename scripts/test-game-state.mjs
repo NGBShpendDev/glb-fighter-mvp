@@ -61,7 +61,20 @@ try {
   tap('KeyQ')
   get().setKey('KeyD', false)
   assert(get().fighters.p1.vx > 7, 'dash applies a burst of horizontal velocity')
+  tick()
+  assert(get().fighters.p1.vx > 7, 'dash burst persists beyond its starting frame')
   assert(get().vfx.some((effect) => effect.kind === 'dustPuff'), 'dash spawns a dust puff VFX event')
+
+  ready()
+  get().setKey('KeyD', true)
+  tick()
+  const firstWalkVelocity = get().fighters.p1.vx
+  tick(4)
+  get().setKey('KeyD', false)
+  assert(firstWalkVelocity > 0 && firstWalkVelocity < get().fighters.p1.vx, 'walk movement accelerates smoothly instead of snapping to full speed')
+  const releaseVelocity = get().fighters.p1.vx
+  tick()
+  assert(get().fighters.p1.vx < releaseVelocity, 'walk movement decelerates smoothly after input release')
 
   ready()
   useGameStore.setState((state) => ({

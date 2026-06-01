@@ -3,6 +3,7 @@ import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { decodePng } from './lib/png-rgba.mjs'
 
 const directory = await mkdtemp(join(tmpdir(), 'ape-fighter-sprites-'))
 const output = join(directory, 'sprite-fighters.mjs')
@@ -130,12 +131,16 @@ try {
   const expectedFighter1Frames = {
     idle: 4,
     walk: 6,
+    dash: 5,
     jump: 4,
     block: 3,
-    lightPunch: 5,
-    kick: 5,
+    lightPunch: 6,
+    heavyPunch: 7,
+    kick: 7,
+    special: 8,
     hit: 3,
-    ko: 5,
+    knockdown: 6,
+    ko: 6,
     victory: 4,
   }
   assert(
@@ -157,29 +162,46 @@ try {
     'fighter-1 kick has a graceful sheet fallback if its asset fails',
   )
   assert(
-    getSpriteAnimationConfig(fighter1, 'dash') === fighter1.animations.walk &&
-      getSpriteAnimationConfig(fighter1, 'knockdown') === fighter1.animations.ko,
-    'fighter-1 omitted optional dash and knockdown sheets safely resolve to walk and KO',
+    fighter1.animations.dash.fallbackAnimation === 'walk' &&
+      fighter1.animations.heavyPunch.fallbackAnimation === 'lightPunch' &&
+      fighter1.animations.special.fallbackAnimation === 'kick' &&
+      fighter1.animations.knockdown.fallbackAnimation === 'ko',
+    'fighter-1 upgraded move sheets retain safe visual fallbacks',
   )
   assert(
-    fighter1.animations.lightPunch.attackPhases.activeFrames.join(',') === '2' &&
+    fighter1.animations.lightPunch.attackPhases.activeFrames.join(',') === '2,3' &&
       hasSpriteFrameEvent(fighter1.animations.lightPunch, 2, 'hitbox-active') &&
       !hasSpriteFrameEvent(fighter1.animations.lightPunch, 1, 'hitbox-active'),
     'fighter-1 light punch exposes frame-driven startup, hit, and recovery timing',
   )
   await access('public/assets/fighters/fighter-1/anchor.png')
   assert(Boolean(fighter1.anchorPath), 'fighter-1 exposes its anchor reference path')
+  await access('public/assets/fighters/fighter-1/portrait.png')
+  assert(Boolean(fighter1.portraitPath), 'fighter-1 exposes its character-select portrait path')
+  for (const animationName of ['lightPunch', 'kick', 'ko', 'dash', 'heavyPunch', 'special', 'knockdown']) {
+    const animation = fighter1.animations[animationName]
+    const file = await readFile(`public${animation.file}`)
+    const image = decodePng(file)
+    assert(
+      image.width % animation.frameCount === 0,
+      `fighter-1 ${animationName} sheet slices into whole-pixel frames`,
+    )
+  }
 
   const fighter2 = SPRITE_FIGHTERS['fighter-2']
   const expectedFighter2Frames = {
     idle: 4,
     walk: 6,
+    dash: 5,
     jump: 4,
     block: 3,
-    lightPunch: 5,
-    kick: 5,
+    lightPunch: 6,
+    heavyPunch: 7,
+    kick: 7,
+    special: 8,
     hit: 3,
-    ko: 5,
+    knockdown: 6,
+    ko: 6,
     victory: 4,
   }
   assert(
@@ -193,21 +215,39 @@ try {
     'fighter-2 maps lightPunch to the submitted hyphenated filename',
   )
   assert(
-    fighter2.animations.heavyPunch.fallbackAnimation === 'lightPunch' &&
-      fighter2.animations.special.fallbackAnimation === 'kick',
-    'fighter-2 missing move sheets gracefully reuse the closest submitted animations',
+    fighter2.animations.dash.fallbackAnimation === 'walk' &&
+      fighter2.animations.heavyPunch.fallbackAnimation === 'lightPunch' &&
+      fighter2.animations.kick.fallbackAnimation === 'lightPunch' &&
+      fighter2.animations.special.fallbackAnimation === 'kick' &&
+      fighter2.animations.knockdown.fallbackAnimation === 'ko',
+    'fighter-2 upgraded move sheets retain safe visual fallbacks',
   )
   assert(
-    getSpriteAnimationConfig(fighter2, 'dash') === fighter2.animations.walk &&
-      getSpriteAnimationConfig(fighter2, 'knockdown') === fighter2.animations.ko,
-    'fighter-2 omitted optional dash and knockdown sheets safely resolve to walk and KO',
+    fighter2.animations.lightPunch.attackPhases.activeFrames.join(',') === '2,3' &&
+      hasSpriteFrameEvent(fighter2.animations.lightPunch, 2, 'hitbox-active') &&
+      !hasSpriteFrameEvent(fighter2.animations.lightPunch, 1, 'hitbox-active'),
+    'fighter-2 light punch exposes frame-driven startup, hit, and recovery timing',
   )
   await access('public/assets/fighters/fighter-2/anchor.png')
   assert(Boolean(fighter2.anchorPath), 'fighter-2 exposes its anchor reference path')
+  await access('public/assets/fighters/fighter-2/portrait.png')
+  assert(Boolean(fighter2.portraitPath), 'fighter-2 exposes its character-select portrait path')
+  for (const animationName of ['lightPunch', 'kick', 'ko', 'dash', 'heavyPunch', 'special', 'knockdown']) {
+    const animation = fighter2.animations[animationName]
+    const file = await readFile(`public${animation.file}`)
+    const image = decodePng(file)
+    assert(
+      image.width % animation.frameCount === 0,
+      `fighter-2 ${animationName} sheet slices into whole-pixel frames`,
+    )
+  }
 
-  const submittedSheets = ['idle', 'walk', 'jump', 'block', 'light-punch', 'kick', 'hit', 'ko', 'victory']
-  for (const fighterId of ['fighter-1', 'fighter-2']) {
-    for (const fileName of submittedSheets) {
+  const submittedSheets = {
+    'fighter-1': ['idle', 'walk', 'dash', 'jump', 'block', 'light-punch', 'heavy-punch', 'kick', 'special', 'hit', 'knockdown', 'ko', 'victory', 'portrait'],
+    'fighter-2': ['idle', 'walk', 'dash', 'jump', 'block', 'light-punch', 'heavy-punch', 'kick', 'special', 'hit', 'knockdown', 'ko', 'victory', 'portrait'],
+  }
+  for (const [fighterId, fileNames] of Object.entries(submittedSheets)) {
+    for (const fileName of fileNames) {
       const file = await readFile(`public/assets/fighters/${fighterId}/${fileName}.png`)
       assert(
         file.subarray(1, 4).toString() === 'PNG',
