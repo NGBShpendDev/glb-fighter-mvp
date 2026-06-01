@@ -10,6 +10,53 @@ type SafeTexture = {
 
 const textureLoader = new THREE.TextureLoader()
 const textureCache = new Map<string, THREE.Texture>()
+const textureRequests = new Map<string, Promise<THREE.Texture>>()
+const textureErrors = new Set<string>()
+
+const loadTexture = (imagePath: string) => {
+  const cachedTexture = textureCache.get(imagePath)
+  if (cachedTexture) return Promise.resolve(cachedTexture)
+
+  const pendingRequest = textureRequests.get(imagePath)
+  if (pendingRequest) return pendingRequest
+
+  const request = new Promise<THREE.Texture>((resolve, reject) => {
+    const texture = textureLoader.load(
+      imagePath,
+      () => {
+        texture.colorSpace = THREE.SRGBColorSpace
+        texture.wrapS = THREE.ClampToEdgeWrapping
+        texture.wrapT = THREE.ClampToEdgeWrapping
+        texture.minFilter = THREE.LinearFilter
+        texture.magFilter = THREE.LinearFilter
+        texture.generateMipmaps = false
+        texture.needsUpdate = true
+        textureCache.set(imagePath, texture)
+        textureErrors.delete(imagePath)
+        console.info(`[ART] loaded ${imagePath}`)
+        resolve(texture)
+      },
+      undefined,
+      () => {
+        texture.dispose()
+        textureErrors.add(imagePath)
+        console.error(`[ART] failed ${imagePath}`)
+        reject(new Error(`Failed to load ${imagePath}`))
+      },
+    )
+  }).finally(() => {
+    textureRequests.delete(imagePath)
+  })
+
+  textureRequests.set(imagePath, request)
+  return request
+}
+
+export const preloadSafeTextures = (imagePaths: string[]) => {
+  for (const imagePath of new Set(imagePaths)) {
+    void loadTexture(imagePath).catch(() => undefined)
+  }
+}
 
 export const useSafeTexture = (imagePath?: string): SafeTexture => {
   const [result, setResult] = useState<SafeTexture>({ texture: null, status: 'idle' })
@@ -26,29 +73,28 @@ export const useSafeTexture = (imagePath?: string): SafeTexture => {
       return
     }
 
+    if (textureErrors.has(imagePath)) {
+      setResult({ texture: null, status: 'error' })
+      return
+    }
+
     let active = true
     setResult({ texture: null, status: 'loading' })
 
-    const texture = textureLoader.load(
-      imagePath,
-      () => {
-        if (!active) return
-        texture.colorSpace = THREE.SRGBColorSpace
-        textureCache.set(imagePath, texture)
+    void loadTexture(imagePath)
+      .then((texture) => {
+        if (active) {
         setResult({ texture, status: 'loaded' })
-        console.info(`[ART] loaded ${imagePath}`)
-      },
-      undefined,
-      () => {
-        if (!active) return
+        }
+      })
+      .catch(() => {
+        if (active) {
         setResult({ texture: null, status: 'error' })
-        console.error(`[ART] failed ${imagePath}`)
-      },
-    )
+        }
+      })
 
     return () => {
       active = false
-      if (!textureCache.has(imagePath)) texture.dispose()
     }
   }, [imagePath])
 
