@@ -4,6 +4,7 @@ import { ARENA_LIMIT, ATTACKS, CONTROLS, GROUND_Y, ROUND_SECONDS } from '../game
 import { boxesOverlap, getAttackHitbox, getHurtbox } from '../game/hitboxes'
 import { ACTIVE_STAGE_ID } from '../game/stages'
 import { createVfxEvent, MAX_ACTIVE_VFX } from '../game/vfx'
+import type { SpriteAnimationName } from '../game/spriteAnimator'
 import type {
   AttackType,
   FighterInput,
@@ -25,6 +26,10 @@ const pendingSpriteDiagnostic = (animation = 'idle'): SpriteAssetDiagnostic => (
   filePath: '',
   status: 'idle',
   message: 'Waiting for sprite loader.',
+  frameIndex: 0,
+  frameCount: 1,
+  fps: 0,
+  usingFallback: false,
 })
 
 const makeFighter = (
@@ -53,6 +58,7 @@ const makeFighter = (
   attack: null,
   cooldown: 0,
   dashCooldown: 0,
+  dashTime: 0,
   hitStun: 0,
   blockStun: 0,
   ko: false,
@@ -109,6 +115,12 @@ const freshFighters = (loadout: Record<PlayerId, FighterLoadout>): Record<Player
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value))
 const MIN_FIGHTER_DISTANCE = 0.82
+const GROUND_ACCELERATION = 28
+const GROUND_DECELERATION = 38
+const AIR_ACCELERATION = 12
+
+const approach = (value: number, target: number, amount: number) =>
+  value < target ? Math.min(value + amount, target) : Math.max(value - amount, target)
 
 const getImpactFeel = (kind: AttackType, blocked: boolean) => {
   if (blocked) return { hitStop: 0.03, shake: 0.07 }
@@ -166,6 +178,12 @@ type GameStore = {
   perfect: boolean
   soundEnabled: boolean
   debugHitboxes: boolean
+  debugSprites: boolean
+  debugSpriteBounds: boolean
+  debugSpriteOrigin: boolean
+  spriteAnimationPaused: boolean
+  spriteAnimationStepRequest: number
+  spriteAnimationPreview: SpriteAnimationName | null
   nextSparkId: number
   nextVfxId: number
   startMatch: () => void
@@ -179,6 +197,12 @@ type GameStore = {
   setP2ControlMode: (mode: P2ControlMode) => void
   setKey: (code: string, down: boolean) => void
   toggleHitboxes: () => void
+  toggleSpriteDebug: () => void
+  toggleSpriteBounds: () => void
+  toggleSpriteOrigin: () => void
+  toggleSpriteAnimationPause: () => void
+  stepSpriteAnimation: () => void
+  setSpriteAnimationPreview: (animation: SpriteAnimationName | null) => void
   toggleSound: () => void
   setSelectedStageId: (stageId: string) => void
   update: (delta: number) => void
@@ -264,6 +288,7 @@ const stepFighter = (fighter: FighterState, input: FighterInput, delta: number) 
     blockStun: Math.max(0, fighter.blockStun - delta),
     cooldown: Math.max(0, fighter.cooldown - delta),
     dashCooldown: Math.max(0, fighter.dashCooldown - delta),
+    dashTime: Math.max(0, fighter.dashTime - delta),
     meter: clamp(fighter.meter + delta * 3.5, 0, 100),
   }
 
@@ -297,11 +322,19 @@ const stepFighter = (fighter: FighterState, input: FighterInput, delta: number) 
   if (mayAct && !next.attack) {
     next.blocking = input.block && next.grounded
     if (!next.blocking) {
-      next.vx = move * 3.9 * (0.78 + next.stats.speed / 320)
       if (input.dash && next.dashCooldown <= 0) {
         const dashDirection = move || next.facing
         next.vx = dashDirection * 10
         next.dashCooldown = 0.7
+        next.dashTime = 0.12
+      } else if (next.dashTime <= 0) {
+        const desiredSpeed = move * 3.9 * (0.78 + next.stats.speed / 320)
+        const acceleration = next.grounded
+          ? move === 0
+            ? GROUND_DECELERATION
+            : GROUND_ACCELERATION
+          : AIR_ACCELERATION
+        next.vx = approach(next.vx, desiredSpeed, acceleration * delta)
       }
       if (input.jump && next.grounded) {
         next.vy = 7.6
@@ -350,6 +383,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   perfect: false,
   soundEnabled: true,
   debugHitboxes: false,
+  debugSprites: false,
+  debugSpriteBounds: false,
+  debugSpriteOrigin: false,
+  spriteAnimationPaused: false,
+  spriteAnimationStepRequest: 0,
+  spriteAnimationPreview: null,
   nextSparkId: 1,
   nextVfxId: 1,
 
@@ -417,7 +456,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         previous.animation === diagnostic.animation &&
         previous.filePath === diagnostic.filePath &&
         previous.status === diagnostic.status &&
-        previous.message === diagnostic.message
+        previous.message === diagnostic.message &&
+        previous.frameIndex === diagnostic.frameIndex &&
+        previous.frameCount === diagnostic.frameCount &&
+        previous.fps === diagnostic.fps &&
+        previous.usingFallback === diagnostic.usingFallback
       ) {
         return state
       }
@@ -443,6 +486,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleHitboxes: () => set((state) => ({ debugHitboxes: !state.debugHitboxes })),
+  toggleSpriteDebug: () => set((state) => ({ debugSprites: !state.debugSprites })),
+  toggleSpriteBounds: () => set((state) => ({ debugSpriteBounds: !state.debugSpriteBounds })),
+  toggleSpriteOrigin: () => set((state) => ({ debugSpriteOrigin: !state.debugSpriteOrigin })),
+  toggleSpriteAnimationPause: () =>
+    set((state) => ({ spriteAnimationPaused: !state.spriteAnimationPaused })),
+  stepSpriteAnimation: () =>
+    set((state) => ({ spriteAnimationPaused: true, spriteAnimationStepRequest: state.spriteAnimationStepRequest + 1 })),
+  setSpriteAnimationPreview: (spriteAnimationPreview) => set({ spriteAnimationPreview }),
   toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
   setSelectedStageId: (selectedStageId) => set({ selectedStageId }),
 
