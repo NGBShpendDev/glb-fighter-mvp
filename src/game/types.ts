@@ -17,6 +17,10 @@ export type SpriteAssetDiagnostic = {
   filePath: string
   status: AssetLoadStatus
   message: string
+  frameIndex: number
+  frameCount: number
+  fps: number
+  usingFallback: boolean
 }
 
 export type FighterStats = {
@@ -50,6 +54,7 @@ export type FighterState = {
   attack: AttackState | null
   cooldown: number
   dashCooldown: number
+  dashTime: number
   hitStun: number
   blockStun: number
   ko: boolean
